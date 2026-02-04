@@ -1,0 +1,8 @@
+{
+  "name": "Copy of -Renta-Corta - Property Admin Suite-V1.5",
+  "description": "A professional multi-property management system for short-term rental owners, featuring AI-powered property optimization, automated rules narration, and visual asset generation.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

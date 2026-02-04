@@ -1,0 +1,231 @@
+
+export const translations = {
+  es: {
+    common: {
+      logout: "SALIR",
+      back: "Regresar",
+      save: "GUARDANDO...",
+      next: "SIGUIENTE",
+      finish: "FINALIZAR",
+      saved: "✓ Sincronizado",
+      loading: "Cargando...",
+      close: "Cerrar",
+      copy: "Copiar",
+      copied: "¡Copiado!",
+    },
+    auth: {
+      ownerAccess: "Acceso Anfitrión",
+      ownerSubtitle: "Ingrese su token para gestionar inmuebles.",
+      tokenLabel: "Token de Seguridad",
+      validate: "VALIDAR ACCESO",
+      welcome: "Bienvenido",
+      guestSubtitle: "Ingresa tu código de reserva.",
+      guestLabel: "Código de Reserva",
+      accessStay: "ACCEDER A MI ESTANCIA",
+      hostAccessBtn: "ACCESO ANFITRIÓN",
+    },
+    owner: {
+      dashboardTitle: "Panel de Control",
+      active: "Activo",
+      listTitle: "Lista de Inmuebles",
+      addProp: "+ Añadir Inmueble",
+      tabs: {
+        config: "Config",
+        assets: "Activos",
+        guides: "Guías",
+        checkins: "Check-ins"
+      },
+      form: {
+        buildingName: "Nombre del Edificio",
+        address: "Dirección del Inmueble",
+        hostName: "Anfitrión (Nombre Público)",
+        city: "Ciudad",
+        capacity: "Capacidad",
+        rooms: "Habitaciones",
+        bathrooms: "Baños",
+        wifiSSID: "WiFi SSID",
+        wifiPass: "WiFi Contraseña",
+        whatsapp: "WhatsApp de Contacto",
+        rules: "Reglas de la Casa",
+        checkout: "Instrucciones de Salida",
+        manual: "Manual de Uso",
+        hostIdentity: "Identidad del Anfitrión",
+        guestExp: "Experiencia del Huésped",
+        avatarLabel: "Avatar del Perfil",
+        welcomeLabel: "Pantalla de Bienvenida (Login)",
+        dashboardLabel: "Fondo del Dashboard (Principal)",
+        newGuest: "+ Nuevo Guest",
+        downloadCsv: "📥 Descargar Historial Administrativo",
+        guestName: "Nombre del Huésped",
+        checkIn: "Fecha de Entrada (Check-in)",
+        checkOut: "Fecha de Salida (Check-out)",
+        loginCode: "Código Login",
+        doorCode: "Código Puerta",
+        regStatus: "Estado del Registro",
+        regDate: "Fecha de Registro",
+        statusChecked: "Check-in realizado el",
+        statusPending: "Pendiente de llegada",
+        statusDraft: "Borrador / No Auditado"
+      },
+      errors: {
+        capacity: "La capacidad debe ser al menos de 1 persona",
+        rooms: "Debe haber al menos 1 habitación",
+        bathrooms: "Debe haber al menos 1 baño",
+        datePast: "LA FECHA NO PUEDE SER ANTERIOR A HOY",
+        dateOrder: "LA SALIDA NO PUEDE SER ANTES DE LA ENTRADA"
+      }
+    },
+    guest: {
+      hello: "Hola",
+      welcomeDynamic: "Tu estancia en {building} comienza ahora",
+      checkInBtn: "CONFIRMAR LLEGADA",
+      unlockText: "Toque para desbloquear",
+      accessCard: "Acceso",
+      viewKey: "Ver Llave Digital",
+      hideKey: "Ocultar Llave",
+      support: "Soporte 24/7",
+      contactHost: "Contactar Anfitrión",
+      nearby: "Cerca de ti",
+      aiRecs: "Recomendaciones IA",
+      viewMap: "Ver en Mapa",
+      hostTitle: "Anfitrión",
+      tabs: {
+        home: "INICIO",
+        manual: "GUÍAS", // Includes Rules & Manual
+        explore: "EXPLORA",
+        wifi: "WIFI",
+        checkout: "SALIDA"
+      },
+      headers: {
+        rules: "Normas de Casa",
+        rulesSub: "Para una convivencia armoniosa",
+        manual: "Manual de Uso",
+        manualSub: "Instrucciones de equipamiento",
+        checkout: "Instrucciones de Salida",
+        checkoutSub: "Antes de partir"
+      },
+      modals: {
+        doorTitle: "Tu Código de Puerta",
+        availableFor: "Disponible por",
+        wifiTitle: "Conexión WiFi",
+        wifiSub: "Acceso seguro de alta velocidad",
+        network: "Red (SSID)",
+        password: "Contraseña"
+      }
+    }
+  },
+  en: {
+    common: {
+      logout: "LOGOUT",
+      back: "Go Back",
+      save: "SAVING...",
+      next: "NEXT",
+      finish: "FINISH",
+      saved: "✓ Synced",
+      loading: "Loading...",
+      close: "Close",
+      copy: "Copy",
+      copied: "Copied!",
+    },
+    auth: {
+      ownerAccess: "Host Access",
+      ownerSubtitle: "Enter your token to manage properties.",
+      tokenLabel: "Security Token",
+      validate: "VALIDATE ACCESS",
+      welcome: "Welcome",
+      guestSubtitle: "Enter your booking code.",
+      guestLabel: "Booking Code",
+      accessStay: "ACCESS MY STAY",
+      hostAccessBtn: "HOST ACCESS",
+    },
+    owner: {
+      dashboardTitle: "Control Panel",
+      active: "Active",
+      listTitle: "Property List",
+      addProp: "+ Add Property",
+      tabs: {
+        config: "Config",
+        assets: "Assets",
+        guides: "Guides",
+        checkins: "Check-ins"
+      },
+      form: {
+        buildingName: "Building Name",
+        address: "Property Address",
+        hostName: "Host (Public Name)",
+        city: "City",
+        capacity: "Capacity",
+        rooms: "Bedrooms",
+        bathrooms: "Bathrooms",
+        wifiSSID: "WiFi SSID",
+        wifiPass: "WiFi Password",
+        whatsapp: "Contact WhatsApp",
+        rules: "House Rules",
+        checkout: "Checkout Instructions",
+        manual: "User Manual",
+        hostIdentity: "Host Identity",
+        guestExp: "Guest Experience",
+        avatarLabel: "Profile Avatar",
+        welcomeLabel: "Welcome Screen (Login)",
+        dashboardLabel: "Dashboard Background (Main)",
+        newGuest: "+ New Guest",
+        downloadCsv: "📥 Download Admin History",
+        guestName: "Guest Name",
+        checkIn: "Check-in Date",
+        checkOut: "Check-out Date",
+        loginCode: "Login Code",
+        doorCode: "Door Code",
+        regStatus: "Registration Status",
+        regDate: "Registration Date",
+        statusChecked: "Check-in done on",
+        statusPending: "Pending arrival",
+        statusDraft: "Draft / Not Audited"
+      },
+      errors: {
+        capacity: "Capacity must be at least 1 person",
+        rooms: "Must have at least 1 room",
+        bathrooms: "Must have at least 1 bathroom",
+        datePast: "DATE CANNOT BE IN THE PAST",
+        dateOrder: "CHECK-OUT CANNOT BE BEFORE CHECK-IN"
+      }
+    },
+    guest: {
+      hello: "Hello",
+      welcomeDynamic: "Your stay at {building} begins now",
+      checkInBtn: "CONFIRM ARRIVAL",
+      unlockText: "Tap to unlock",
+      accessCard: "Access",
+      viewKey: "View Digital Key",
+      hideKey: "Hide Key",
+      support: "24/7 Support",
+      contactHost: "Contact Host",
+      nearby: "Near You",
+      aiRecs: "AI Recommendations",
+      viewMap: "View on Map",
+      hostTitle: "Host",
+      tabs: {
+        home: "HOME",
+        manual: "GUIDES",
+        explore: "EXPLORE",
+        wifi: "WIFI",
+        checkout: "EXIT"
+      },
+      headers: {
+        rules: "House Rules",
+        rulesSub: "For a harmonious stay",
+        manual: "User Manual",
+        manualSub: "Equipment instructions",
+        checkout: "Checkout Instructions",
+        checkoutSub: "Before you leave"
+      },
+      modals: {
+        doorTitle: "Your Door Code",
+        availableFor: "Available for",
+        wifiTitle: "WiFi Connection",
+        wifiSub: "High-speed secure access",
+        network: "Network (SSID)",
+        password: "Password"
+      }
+    }
+  }
+};
