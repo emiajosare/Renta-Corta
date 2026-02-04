@@ -1,3 +1,11 @@
+export const AppView = {
+  LOGIN_CHOICE: 'LOGIN_CHOICE',
+  OWNER_LOGIN: 'OWNER_LOGIN',
+  PROPERTY_LIST: 'PROPERTY_LIST',
+  PROPERTY_DETAIL: 'PROPERTY_DETAIL',
+  GUEST_LOGIN: 'GUEST_LOGIN',
+  GUEST_DASHBOARD: 'GUEST_DASHBOARD',
+  INITIAL_SECURITY: 'INITIAL_SECURITY'
+} as const;
 
-export enum AppView {
-}
+export type AppView = typeof AppView[keyof typeof AppView];
