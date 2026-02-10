@@ -1,8 +1,5 @@
 
-
 import type { AccessControl, PropertySettings, Owner } from './types';
-
-
 
 export const STORAGE_KEYS = {
   OWNERS: 'ss_owners',
@@ -10,9 +7,14 @@ export const STORAGE_KEYS = {
   ACCESS_CONTROL: 'ss_access_control'
 };
 
+// --- UUIDs GENERADOS PARA DESARROLLO ---
+const OWNER_UUID = '56836cfb-9adf-4b22-8dd9-902a7116d0d2';
+const PROPERTY_UUID = 'f4df9ab1-ca1f-4257-a9f1-7a1c5735c3bf';
+const ACCESS_UUID = '91e98ce4-d36c-4240-bcd8-0a4bb501002f';
+
 export const MOCK_OWNERS: Owner[] = [
   { 
-    id: 'o1', 
+    id: OWNER_UUID, 
     name: 'Admin Principal', 
     token: 'ADMIN2024', 
     tokenPersonalized: false,
@@ -22,8 +24,8 @@ export const MOCK_OWNERS: Owner[] = [
 
 export const MOCK_PROPERTIES: PropertySettings[] = [
   {
-    id: 'p1',
-    ownerId: 'o1',
+    id: PROPERTY_UUID,
+    ownerId: OWNER_UUID, // Vinculado al OWNER_UUID
     buildingName: 'Escribe el nombre de tu Propiedad',
     hostName: 'Nombre del Anfritrion',
     city: 'Ciudad del Lugar',
@@ -48,8 +50,8 @@ const checkOutDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOSt
 
 export const MOCK_ACCESS: AccessControl[] = [
   {
-    id: 'ac1',
-    propertyId: 'p1',
+    id: ACCESS_UUID,
+    propertyId: PROPERTY_UUID, // Vinculado al PROPERTY_UUID
     guestName: 'Sin Nombre',
     checkIn: checkInDate,
     checkOut: checkOutDate,

@@ -1,61 +1,176 @@
-
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import { translations } from '../translations';
+import type { PropertySettings, AccessControl, Language } from '../types';
 
 interface GuestLoginProps {
-  onLogin: (code: string) => void;
-  error?: string;
-  t: any;
+  onLoginSuccess: (property: PropertySettings, guest: AccessControl) => void;
+  language: Language;
+  onToggleLanguage: () => void;
+  onExit: () => void;
+  onHostAccess: () => void; // Nueva prop para vincular el acceso de anfitrión
 }
 
-const GuestLogin: React.FC<GuestLoginProps> = ({ onLogin, error, t }) => {
-  const [code, setCode] = useState('');
+const GuestLogin: React.FC<GuestLoginProps> = ({ 
+  onLoginSuccess, 
+  language, 
+  onToggleLanguage, 
+  onExit,
+  onHostAccess 
+}) => {
+  const [bookingCode, setBookingCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(code);
+    const cleanCode = bookingCode.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data: guestData, error: guestError } = await supabase
+        .from('access_control')
+        .select('*')
+        .eq('booking_code', cleanCode)
+        .maybeSingle();
+
+      if (guestError) throw guestError;
+      
+      if (!guestData) {
+        setError(language === 'es' ? 'Código no encontrado' : 'Code not found');
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: propData, error: propError } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('id', guestData.property_id)
+        .maybeSingle();
+
+      if (propError || !propData) throw new Error('Property error');
+
+      const formattedProperty: PropertySettings = {
+        id: propData.id,
+        ownerId: propData.owner_id,
+        buildingName: propData.building_name,
+        hostName: propData.host_name,
+        city: propData.city,
+        address: propData.address,
+        capacity: propData.capacity,
+        rooms: propData.rooms,
+        bathrooms: propData.bathrooms,
+        wifiSSID: propData.wifi_ssid,
+        wifiPass: propData.wifi_pass,
+        rules: propData.rules,
+        guides: propData.guides,
+        checkoutInstructions: propData.checkout_instructions,
+        whatsappContact: propData.whatsapp_contact,
+        welcomeImageUrl: propData.welcome_image_url,
+        stayImageUrl: propData.stay_image_url,
+        location_lat: propData.location_lat,
+        location_lng: propData.location_lng,
+        aiRecommendations: propData.ai_recommendations
+      };
+
+      const formattedGuest: AccessControl = {
+        id: guestData.id,
+        propertyId: guestData.property_id,
+        guestName: guestData.guest_name,
+        checkIn: guestData.check_in,
+        checkOut: guestData.check_out,
+        bookingCode: guestData.booking_code,
+        doorCode: guestData.door_code,
+        checkinStatus: guestData.checkin_status,
+        registrationDate: guestData.registration_date,
+        issuedAt: guestData.issued_at
+      };
+
+      onLoginSuccess(formattedProperty, formattedGuest);
+
+    } catch (err) {
+      console.error("Login error:", err);
+      setError(language === 'es' ? 'Error de conexión' : 'Connection error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
-      <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 w-full max-w-md">
+      // Reemplaza el bloque de botones superiores y el final del archivo en GuestLogin.tsx
+
+    return (
+      <div className="w-full flex flex-col items-center pt-16 p-6 relative z-10">
         
-        <div className="mb-10 text-center">
-          <div className="w-24 h-24 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-sm">
-            <svg className="w-12 h-12 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-            </svg>
-          </div>
-          <h2 className="text-3xl font-black text-[#212121] tracking-tight">{t.auth.welcome}</h2>
-          <p className="text-[#64748B] mt-3 font-medium">{t.auth.guestSubtitle}</p>
+        {/* 🟢 BOTONES SUPERIORES RESPONSIVOS (Extremo Izquierdo y Derecho) */}
+        <div className="absolute top-6 inset-x-6 flex justify-between items-center z-50">
+          {/* BOTÓN SALIR: Estilo blanco/translúcido Luxury */}
+          <button 
+            onClick={onExit}
+            className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all shadow-lg active:scale-95"
+          >
+            {language === 'es' ? 'SALIR' : 'EXIT'}
+          </button>
+
+          {/* BOTÓN IDIOMA: Idéntico al de Salir */}
+          <button 
+            onClick={onToggleLanguage}
+            className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all shadow-lg active:scale-95"
+          >
+            {language.toUpperCase()}
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[#64748B] mb-3 ml-1">{t.auth.guestLabel}</label>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="GUEST777"
-              className="w-full px-6 py-5 text-center text-3xl font-black font-mono tracking-[0.3em] rounded-[1.5rem] border-[1.5px] border-[#CBD5E1] bg-[#F8FAFC] text-[#212121] placeholder-[#CBD5E1] focus:bg-white focus:border-[#0052FF] focus:ring-4 focus:ring-[#0052FF]/15 outline-none transition-all duration-300 uppercase"
-              required
-            />
-          </div>
-          {error && (
-            <div className="bg-red-50 text-red-600 p-5 rounded-2xl text-sm font-bold border border-red-100 animate-in fade-in slide-in-from-top-2">
-              {error}
+        {/* TARJETA DE BIENVENIDA */}
+        <div className="relative bg-white w-full max-w-[360px] rounded-[3.5rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] p-10 animate-in fade-in slide-in-from-bottom-10 duration-1000">
+          
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 text-emerald-500 shadow-inner">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10">
+                <path fillRule="evenodd" d="M15.75 1.5a6.75 6.75 0 00-6.651 7.906c-1.067.322-2.024.854-2.841 1.538l-1.634-1.633a2.25 2.25 0 00-3.182 3.182l1.633 1.634a.75.75 0 01.22.53v1.5c0 .414.336.75.75.75h1.5a.75.75 0 01.53.22l2.484-2.485c.684-.817 1.216-1.774 1.538-2.841A6.75 6.75 0 1015.75 1.5zm0 3a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5zm-3 2.25a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5h-1.5z" clipRule="evenodd" />
+              </svg>
             </div>
-          )}
-          <button
-            type="submit"
-            className="w-full bg-[#212121] hover:bg-black text-white font-black py-6 rounded-[1.5rem] transition-all shadow-2xl active:scale-[0.98] text-lg"
-          >
-            {t.auth.accessStay}
-          </button>
-        </form>
+            <h1 className="text-4xl font-black text-gray-900 tracking-tight mb-2">
+              {language === 'es' ? 'Bienvenido' : 'Welcome'}
+            </h1>
+            <p className="text-gray-400 text-sm font-semibold">
+              {language === 'es' ? 'Ingresa tu código de reserva.' : 'Enter your booking code.'}
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-3 text-center">
+              <label className="block text-[10px] font-black text-gray-400 tracking-[0.2em] uppercase">
+                {language === 'es' ? 'CÓDIGO DE RESERVA' : 'BOOKING CODE'}
+              </label>
+              <input
+                type="text"
+                value={bookingCode}
+                onChange={(e) => setBookingCode(e.target.value)}
+                placeholder="GUEST77"
+                className="w-full px-6 py-5 rounded-2xl bg-gray-50 border-2 border-gray-100 text-gray-900 text-2xl text-center font-black uppercase tracking-[0.2em] focus:bg-white focus:border-emerald-500 outline-none transition-all duration-300 placeholder-gray-200"
+              />
+              {error && <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest mt-4 animate-pulse">{error}</p>}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`w-full bg-[#111111] hover:bg-black text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.25em] transition-all active:scale-[0.97] shadow-xl ${
+                isLoading ? 'opacity-70 cursor-wait' : ''
+              }`}
+            >
+              {isLoading ? (language === 'es' ? 'VERIFICANDO...' : 'CHECKING...') : (language === 'es' ? 'ACCEDER A MI ESTANCIA' : 'ACCESS MY STAY')}
+            </button>
+          </form>
+
+          {/* ELIMINADO: El botón de Acceso Anfitrión interno ya no está aquí */}
+        </div>
       </div>
-    </div>
-  );
+    );
+
 };
 
 export default GuestLogin;

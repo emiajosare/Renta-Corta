@@ -33,18 +33,46 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     }
   };
 
-  // --- PERSISTENT TIMER LOGIC ---
-  const TIMER_DURATION_SEC = 1800;
-  const calculateTimeLeft = () => {
-    if (!access.checkinStatus || !access.checkInTimestamp) return TIMER_DURATION_SEC;
-    const now = Date.now();
-    const elapsedSeconds = Math.floor((now - access.checkInTimestamp) / 1000);
-    const remaining = TIMER_DURATION_SEC - elapsedSeconds;
-    return Math.max(0, remaining);
-  };
-  const [timeLeft, setTimeLeft] = useState(calculateTimeLeft()); 
-  const [timerExpired, setTimerExpired] = useState(timeLeft <= 0);
-  const displayDoorCode = timerExpired ? '****' : access.doorCode;
+  // --- PERSISTENT TIMER LOGIC (RESTAURADA Y ACTIVADA) ---
+const TIMER_DURATION_SEC = 1800; // 30 minutos
+
+const calculateTimeLeft = () => {
+  // 1. Verificamos que haya hecho check-in y que tengamos la marca de tiempo
+  // Usamos Number(access.issuedAt) porque lo enviamos como string desde App.tsx
+  if (!access.checkinStatus || !access.issuedAt) return TIMER_DURATION_SEC;
+  
+  const startTime = isNaN(Number(access.issuedAt)) 
+    ? new Date(access.issuedAt).getTime() // Si es ISO, lo convertimos
+    : Number(access.issuedAt);            // Si ya es número, lo usamos
+    
+  if (isNaN(startTime)) return TIMER_DURATION_SEC;
+  const now = Date.now();
+  const elapsedSeconds = Math.floor((now - startTime) / 1000);
+  const remaining = TIMER_DURATION_SEC - elapsedSeconds;
+  
+  return Math.max(0, remaining);
+};
+
+const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+const [timerExpired, setTimerExpired] = useState(timeLeft <= 0);
+
+// --- EL MOTOR (HEARTBEAT): Esto hace que el diseño se mueva ---
+useEffect(() => {
+  if (!access.checkinStatus || timeLeft <= 0) return;
+
+  const interval = setInterval(() => {
+    const newTime = calculateTimeLeft();
+    setTimeLeft(newTime);
+    if (newTime <= 0) {
+      setTimerExpired(true);
+      clearInterval(interval);
+    }
+  }, 1000); // Se ejecuta cada segundo
+
+  return () => clearInterval(interval);
+}, [access.checkinStatus, access.issuedAt]);
+
+const displayDoorCode = timerExpired ? '****' : access.doorCode;
 
   // Iconos inteligentes para categorías
   const categoryIcons: Record<string, string> = {
@@ -233,12 +261,12 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
                 onClick={() => handleNavClick(item.id)} 
                 disabled={!access.checkinStatus && item.id !== 'RESUMEN'}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 ${
-                  activeTab === item.id && (item.id as string) !== 'WIFI' ? 'bg-white text-[#0052FF] shadow-lg scale-110' : ''
-                } ${(!access.checkinStatus && item.id !== 'RESUMEN') ? 'opacity-30 cursor-not-allowed' : ''}`}
+                  activeTab === item.id && (item.id as string) !== 'WIFI' ? 'bg-white text-[#0052FF] shadow-lg scale-110' : 'text-white/80 hover:text-white'
+                } ${(!access.checkinStatus && item.id !== 'RESUMEN') ? 'opacity-20 cursor-not-allowed' : 'opacity-100'}`}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">{item.icon}</svg>
               </button>
-              <span className={`text-[8px] font-black uppercase tracking-wider mt-1 transition-all duration-300 ${activeTab === item.id && (item.id as string) !== 'WIFI' ? 'text-white' : 'text-white/40 hidden sm:block'}`}>
+              <span className={`text-[8px] font-black uppercase tracking-wider mt-1 transition-all duration-300 ${activeTab === item.id && (item.id as string) !== 'WIFI' ? 'text-white' : 'text-white/60 hidden sm:block'}`}>
                 {getDockLabel(item.id)}
               </span>
             </div>
@@ -264,9 +292,16 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
                     <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-[#0052FF] group-hover:text-white transition-all"><svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg></div>
                  </button>
                  <a href={whatsappUrl} target="_blank" className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm flex items-center space-x-5 transition-all group">
-                    <div className="w-14 h-14 bg-[#25D366] text-white rounded-2xl flex items-center justify-center shadow-lg"><svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.246 2.248 3.484 5.232 3.484 8.412-.003 6.557-5.338 11.892-11.893 11.892-1.997-.001-3.951-.5-5.688-1.448l-6.309 1.656zm6.29-4.143c1.589.943 3.133 1.415 4.75 1.416 5.482.001 9.944-4.461 9.947-9.945.001-2.657-1.034-5.155-2.913-7.034-1.879-1.878-4.375-2.912-7.033-2.913-5.483 0-9.944 4.461-9.947 9.945 0 1.787.475 3.529 1.375 5.038l-.997 3.642 3.73-.978zm11.51-6.953c-.301-.151-1.781-.879-2.057-.979-.277-.101-.478-.151-.679.151-.202.301-.78 1.005-.955 1.206-.176.202-.351.226-.652.076-.301-.151-1.273-.469-2.425-1.495-.897-.8-1.502-1.788-1.678-2.089-.176-.301-.019-.464.131-.614.135-.135.301-.351.452-.527.151-.176.201-.301.502.101-.201.05-.377-.025-.527-.075-.151-.679-1.634-.93-2.237-.244-.588-.492-.508-.679-.517-.176-.008-.377-.01-.578-.01-.201 0-.528.075-.804.377-.276.301-1.055 1.03-1.055 2.513s1.08 2.915 1.231 3.116c.151.201 2.125 3.245 5.148 4.545.719.309 1.28.494 1.716.633.722.23 1.378.197 1.897.12.578-.086 1.781-.729 2.032-1.433.251-.703.251-1.306.176-1.433-.075-.127-.276-.202-.577-.353z"/></svg></div>
-                    <div className="flex-1 overflow-hidden"><h4 className="text-lg font-black text-[#212121] tracking-tight truncate">{t.guest.support}</h4><p className="text-[#25D366] text-xs font-black uppercase tracking-widest mt-0.5">{t.guest.contactHost}</p></div>
-                 </a>
+                    <div className="w-14 h-14 bg-[#25D366] text-white rounded-2xl flex items-center justify-center shadow-lg">
+                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766 0-3.18-2.587-5.771-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.312.045-.63.078-1.554-.277-.384-.148-.823-.33-1.341-.561-2.204-.981-3.64-3.21-3.75-3.354-.11-.144-.894-1.192-.894-2.274 0-1.082.567-1.613.77-1.83.203-.217.443-.271.591-.271.148 0 .296.002.423.007.132.006.31-.024.485.405.176.43.606 1.48.659 1.591.053.111.089.24.015.39-.074.15-.11.243-.218.372-.11.129-.23.287-.329.385-.11.109-.226.228-.098.448.128.22.568.937 1.22 1.519.84.75 1.55.982 1.77 1.092.22.11.351.092.482-.058.13-.15.559-.65.707-.872.148-.222.296-.187.5-.112.204.075 1.293.61 1.514.72.221.112.37.166.425.259.056.093.056.54-.088.945z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <h4 className="text-lg font-black text-[#212121] tracking-tight truncate">{t.guest.support}</h4>
+                      <p className="text-[#25D366] text-xs font-black uppercase tracking-widest mt-0.5">{t.guest.contactHost}</p>
+                    </div>
+                  </a>
               </div>
             )}
           </div>
@@ -327,7 +362,9 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
                           document.getElementById(`cat-${cat}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
                         }}
                         className={`flex-shrink-0 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
-                          activeCategory === cat ? 'bg-[#0052FF] text-white border-blue-600 shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'
+                          activeCategory === cat 
+                              ? 'bg-[#111111] text-white border-black shadow-xl scale-105' 
+                              : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'
                         }`}
                       >
                         <span className="mr-2">{categoryIcons[cat] || categoryIcons.Default}</span>
@@ -352,21 +389,42 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
                 {/* GRID DE RECOMENDACIONES (Sin cambios) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
                   {(property.aiRecommendations?.[activeCategory] || []).map((place, i) => (
-                    <a key={i} href={`https://www.google.com/search?q=${encodeURIComponent(place.name + " " + property.city)}`} target="_blank"
-                      className="bg-white p-8 rounded-[2.5rem] border border-slate-100 flex flex-col justify-between hover:shadow-xl hover:-translate-y-1 transition-all group">
-                      <div>
-                        <div className="flex justify-between items-start mb-4">
-                          <span className="bg-blue-50 text-[#0052FF] px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">{place.type}</span>
-                          <div className="flex items-center text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">
-                            <span className="text-xs font-black mr-1">{place.rating}</span>
-                            <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                    <a 
+                      key={i} 
+                      href={`https://www.google.com/search?q=${encodeURIComponent(place.name + " " + property.city)}`} 
+                      target="_blank"
+                      className="group relative bg-[#111111] p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-between hover:border-white/20 hover:-translate-y-1 transition-all duration-500 overflow-hidden shadow-2xl"
+                    >
+                      {/* Efecto de brillo ambiental al pasar el dedo/mouse */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#0052FF]/10 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-6">
+                          <span className="bg-white/5 backdrop-blur-md border border-white/10 text-white/70 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em]">
+                            {place.type}
+                          </span>
+                          <div className="flex items-center text-amber-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
+                            <span className="text-[10px] font-black mr-1">{place.rating}</span>
+                            <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
                           </div>
                         </div>
-                        <h4 className="font-bold text-slate-900 text-xl leading-tight mb-2 group-hover:text-[#0052FF] transition-colors">{place.name}</h4>
-                        <p className="text-slate-500 text-xs font-medium leading-relaxed">{place.description}</p>
+                        
+                        <h4 className="font-black text-white text-2xl leading-tight mb-3 tracking-tight group-hover:text-[#0052FF] transition-colors duration-300">
+                          {place.name}
+                        </h4>
+                        
+                        <p className="text-white/40 text-sm font-medium leading-relaxed mb-8 line-clamp-3">
+                          {place.description}
+                        </p>
                       </div>
-                      <div className="mt-6 pt-6 border-t border-slate-50 text-[#0052FF] text-[10px] font-black uppercase tracking-widest flex items-center justify-end">
-                        {t.guest.viewMap} →
+
+                      <div className="relative z-10 pt-6 border-t border-white/5 text-white/30 text-[9px] font-black uppercase tracking-[0.3em] flex items-center justify-between group-hover:text-white transition-colors">
+                        <span>{t.guest.viewMap}</span>
+                        <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
                       </div>
                     </a>
                   ))}

@@ -90,8 +90,6 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
   setView(AppView.GUEST_DASHBOARD);
   setError('');
 };
-
-
  const handleCheckIn = async (accessId: string) => {
   // 1. Generamos la marca de tiempo exacta para el temporizador luxury
   const nowISO = new Date().toISOString();
@@ -122,7 +120,7 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
       doorCode: data.door_code,
       checkinStatus: data.checkin_status,
       registrationDate: data.registration_date,
-      issuedAt: data.issued_at ? new Date(data.issued_at).getTime().toString() : Date.now().toString()// Esta es la clave para el temporizador
+      issuedAt: data.issued_at // Esta es la clave para el temporizador
     };
 
     // 4. Actualizamos el estado actual: esto "ilumina" los botones de la interfaz al instante
@@ -137,96 +135,48 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
   }
 };
 
-      const handleSaveProperty = (updatedProp: PropertySettings, updatedAccess: AccessControl) => {
-      setProperties(prevProps => {
-        // Buscamos si ya existe por el nuevo ID
-        const exists = prevProps.some(p => p.id === updatedProp.id);
-        
-        let newProps;
-        if (exists) {
-          // Si existe, actualizamos normal
-          newProps = prevProps.map(p => p.id === updatedProp.id ? updatedProp : p);
-        } else {
-          // 🟢 CLAVE: Si el ID no coincide, es porque acaba de recibir un UUID de Supabase.
-          // Reemplazamos la propiedad seleccionada actualmente por la nueva con UUID.
-          newProps = prevProps.map(p => p.id === selectedProperty?.id ? updatedProp : p);
-        }
-        
-        localStorage.setItem(STORAGE_KEYS.PROPERTIES, JSON.stringify(newProps));
-        return newProps;
-      });
-
-      setAccessRecords(prevAccess => {
-        const accessExists = prevAccess.some(a => a.bookingCode === updatedAccess.bookingCode);
-        const newAccess = accessExists 
-          ? prevAccess.map(a => a.bookingCode === updatedAccess.bookingCode ? updatedAccess : a) 
-          : [...prevAccess, updatedAccess];
-        
-        localStorage.setItem(STORAGE_KEYS.ACCESS_CONTROL, JSON.stringify(newAccess));
-        return newAccess;
-      });
-
-      // Actualizamos la propiedad seleccionada con su nuevo UUID oficial
-      setSelectedProperty(updatedProp);
-    };
-
- 
+  const handleSaveProperty = (updatedProp: PropertySettings, updatedAccess: AccessControl) => {
+    const newProperties = properties.map(p => p.id === updatedProp.id ? updatedProp : p);
+    const accessExists = accessRecords.some(a => a.id === updatedAccess.id);
+    const newAccessRecords = accessExists ? accessRecords.map(a => a.id === updatedAccess.id ? updatedAccess : a) : [...accessRecords, updatedAccess];
+    localStorage.setItem(STORAGE_KEYS.PROPERTIES, JSON.stringify(newProperties));
+    localStorage.setItem(STORAGE_KEYS.ACCESS_CONTROL, JSON.stringify(newAccessRecords));
+    setProperties(newProperties);
+    setAccessRecords(newAccessRecords);
+    setSelectedProperty(updatedProp);
+  };
 
   const handleLogout = () => {
-    // 1. Limpiamos los estados de identidad
     setCurrentOwner(null);
     setCurrentGuest(null);
+    setView(AppView.LOGIN_CHOICE);
     setSelectedProperty(null);
-    
-    // 2. Limpiamos errores o estados temporales
     setError('');
-    
-    // 3. LIMPIEZA DE MEMORIA (Vital para seguridad)
-    // Borra todo lo que hayamos guardado en el navegador
-    localStorage.clear(); 
-    sessionStorage.clear();
-
-    // 4. Redirigimos a la pantalla de inicio (Selección: Dueño / Huésped)
-    // Asegúrate de que 'AppView.LOGIN_CHOICE' sea el nombre de tu vista inicial
-    setView(AppView.LOGIN_CHOICE); 
-
-    // 5. Opcional: Pequeño truco para asegurar limpieza total de caché
-    // window.location.reload(); 
-  };
-  
-  const handleHostAccess = () => {
-    setView(AppView.OWNER_LOGIN); // O la vista que uses para el anfitrión
   };
 
-  //CREAR UNA NUEVA PROPIEDAD
-    const createNewProperty = () => {
+  const createNewProperty = () => {
     if (!currentOwner) return;
-    
-    // Usamos un ID temporal que luego Supabase reemplazará
+    const seed = MOCK_PROPERTIES[0];
     const newPropId = `p${Date.now()}`;
-    
-    // 🟢 INICIALIZACIÓN LIMPIA: Campos vacíos para obligar al usuario a llenarlos
     const newProp: PropertySettings = {
       id: newPropId,
       ownerId: currentOwner.id,
-      buildingName: '', // Antes decía 'Nuevo Inmueble', ahora está vacío
-      hostName: currentOwner.name, // Este sí lo mantenemos, es útil
-      city: '', // Vacío
-      address: '', // Vacío
-      capacity: '', // Vacío
-      rooms: 0,
-      bathrooms: 0,
+      buildingName: 'Nuevo Inmueble',
+      hostName: currentOwner.name,
+      city: seed.city,
+      address: '',
+      capacity: seed.capacity,
+      rooms: seed.rooms,
+      bathrooms: seed.bathrooms,
       wifiSSID: '',
       wifiPass: '',
-      rules: '',
-      guides: '',
-      checkoutInstructions: '',
+      rules: seed.rules,
+      guides: seed.guides,
+      checkoutInstructions: seed.checkoutInstructions,
       whatsappContact: '',
       welcomeImageUrl: '',
       stayImageUrl: ''
     };
-
-    // ... resto de la lógica de la función (setProperties, etc.) ...
     const updatedProps = [...properties, newProp];
     setProperties(updatedProps);
     localStorage.setItem(STORAGE_KEYS.PROPERTIES, JSON.stringify(updatedProps));
@@ -310,24 +260,34 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
             </div>
 
             {/* FLOATING LANGUAGE SELECTOR */}
+            <div className="absolute top-6 right-6 z-20">
+               <button 
+                  onClick={handleToggleLanguage}
+                  className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all shadow-lg active:scale-95"
+               >
+                  {language === 'es' ? 'EN' : 'ES'}
+               </button>
+            </div>
             
-                                    
-            {/* MINIMALIST & DISCREET HOST ACCESS BUTTON */}
-           <div className="flex flex-col items-center">
+            <div className="relative z-10 flex-1 w-full flex flex-col items-center justify-center p-4">
               <GuestLogin 
-                onLoginSuccess={handleGuestLogin} 
-                language={language}
-                onToggleLanguage={handleToggleLanguage}
-                onExit={() => setView(AppView.LOGIN_CHOICE)}
-                onHostAccess={handleHostAccess} // Pasamos la función que acabamos de crear
+                  onLoginSuccess={handleGuestLogin} // Cambiamos onLogin por onLoginSuccess
+                  language={language}               // Usamos el estado de idioma de tu App
+                  onToggleLanguage={handleToggleLanguage} // Usamos tu función de cambiar idioma
+
+                /*onLogin={handleGuestLogin}
+                error={error}
+                t={t} // Passing translations manually to GuestLogin*/
               />
-              
-              {/* Botón externo (opcional, sube con -mt-4 para pegarse a la tarjeta) */}
+            </div>
+            
+            {/* MINIMALIST & DISCREET HOST ACCESS BUTTON */}
+             <div className="relative z-10 w-full pb-8 flex justify-center">
               <button 
-                onClick={handleHostAccess}
-                className="-mt-4 text-[9px] font-black text-white/50 uppercase tracking-[0.3em] z-20 hover:text-white transition-colors"
+                onClick={() => setView(AppView.OWNER_LOGIN)} 
+                className="text-white/40 hover:text-white transition-colors text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2"
               >
-                ACCESO ANFITRIÓN
+                {t.auth.hostAccessBtn}
               </button>
             </div>
           </div>

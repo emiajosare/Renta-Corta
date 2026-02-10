@@ -60,3 +60,10 @@ export const AppView = {
 export type AppView = typeof AppView[keyof typeof AppView];
 // Añade 'WIFI' a la unión de tipos para que sea una opción legal
 export type GuestTab = 'RESUMEN' | 'GUIA' | 'REGLAS' | 'CHECKOUT' | 'WIFI' | 'MAPS';
+
+// Dentro de src/types.ts
+export interface PropertySettings {
+  // ... todos tus campos actuales ...
+  location_lat?: number; // Añade esta línea
+  location_lng?: number; // Añade esta línea
+}
