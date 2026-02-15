@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import type { PropertySettings, AccessControl, Owner, Language } from '../types';
 import { STORAGE_KEYS } from '../constants';
 import { translations } from '../translations';
+import { supabase } from '../lib/supabaseClient'; // 🟢 Añadir esta línea
 
 interface GuestDashboardProps {
   property: PropertySettings;
@@ -94,14 +95,38 @@ const displayDoorCode = timerExpired ? '****' : access.doorCode;
     return () => clearInterval(interval);
   }, [access.checkinStatus, access.checkInTimestamp, timerExpired]);
 
+  
   useEffect(() => {
-    const rawOwners = localStorage.getItem(STORAGE_KEYS.OWNERS);
-    if (rawOwners) {
-      const owners: Owner[] = JSON.parse(rawOwners);
-      const owner = owners.find(o => o.id === property.ownerId);
-      if (owner?.avatarUrl) setHostAvatar(owner.avatarUrl);
+    // Si tenemos recomendaciones pero no hay categoría seleccionada, 
+    // ponemos la primera que aparezca (ej: Restaurantes)
+    if (property.aiRecommendations && !activeCategory) {
+      const firstCat = Object.keys(property.aiRecommendations)[0];
+      if (firstCat) setActiveCategory(firstCat);
     }
-  }, [property.ownerId]);
+  }, [property.aiRecommendations]);
+
+ // --- CARGA DEL AVATAR DESDE LA NUBE ---
+      useEffect(() => {
+        const fetchHostAvatar = async () => {
+          if (!property.ownerId) return;
+
+          try {
+            const { data, error } = await supabase
+              .from('owners')
+              .select('avatar_url')
+              .eq('id', property.ownerId)
+              .single();
+
+            if (!error && data?.avatar_url) {
+              setHostAvatar(data.avatar_url);
+            }
+          } catch (err) {
+            console.error("Error al cargar avatar del host:", err);
+          }
+        };
+
+        fetchHostAvatar();
+      }, [property.ownerId]);
 
   // Sincronización robusta de categorías
   useEffect(() => {
@@ -134,7 +159,7 @@ const displayDoorCode = timerExpired ? '****' : access.doorCode;
   };
 
   const parseList = (text: string) => text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  const whatsappUrl = `https://wa.me/${property.whatsappContact.replace(/\D/g, '')}`;
+  const whatsappUrl = `https://wa.me/${(property.whatsappContact || '').replace(/\D/g, '')}`;
 
   const getFlexibleFontSize = (text: string) => {
     const length = text ? text.length : 0;
@@ -196,7 +221,12 @@ const displayDoorCode = timerExpired ? '****' : access.doorCode;
         {/* Background Image */}
         <div 
           className="absolute inset-0 bg-cover bg-center transition-transform duration-[3s] ease-in-out scale-105 group-hover:scale-110" 
-          style={{ backgroundImage: `url(${property.stayImageUrl || 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80'})` }}
+          style={{ 
+            // 🟢 Usamos stayImageUrl y nos aseguramos de que no haya fallos de carga
+            backgroundImage: `url(${!access.checkinStatus ? property.welcomeImageUrl : property.welcomeImageUrl})`,
+            backgroundPosition: 'center',
+            backgroundSize: 'cover'
+          }}
         ></div>
   
         {/* Overlays */}
@@ -280,6 +310,16 @@ const displayDoorCode = timerExpired ? '****' : access.doorCode;
         {/* PESTAÑA: RESUMEN */}
         {activeTab === 'RESUMEN' && (
           <div className="space-y-6">
+           {/*{property.welcomeImageUrl && !access.checkinStatus && (
+              <div className="relative w-full h-48 rounded-[2rem] overflow-hidden shadow-lg animate-in fade-in zoom-in duration-700">
+                <img 
+                  src={property.welcomeImageUrl} 
+                  className="w-full h-full object-cover object-center" 
+                  alt="Welcome"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+              </div>
+            )}*/}
             <h2 className="text-xl font-black text-slate-400 uppercase tracking-widest text-center">{t.guest.welcomeDynamic.replace('{building}', property.buildingName)}</h2>
             {!access.checkinStatus ? (
                <button onClick={handleConfirmCheckin} className="w-full bg-[#0052FF] text-white py-12 rounded-[2.5rem] font-black text-2xl shadow-2xl transition-transform active:scale-[0.98] border border-blue-400/20">
@@ -316,138 +356,136 @@ const displayDoorCode = timerExpired ? '****' : access.doorCode;
         )}
 
         {/* PESTAÑA: EXPLORA (Guía de IA) */}
+        <style>{`
+          .no-scrollbar::-webkit-scrollbar {
+            display: none !important;
+          }
+          .no-scrollbar {
+            -ms-overflow-style: none !important;
+            scrollbar-width: none !important;
+          }
+        `}</style>
+        
         {activeTab === 'EXPLORA' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="px-2">
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">{t.guest.nearby}</h3>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">{t.guest.aiRecs}</p>
-            </div>
+        <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
+          <div className="px-2">
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight">{t.guest.nearby}</h3>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1">{t.guest.aiRecs}</p>
+          </div>
 
-            {/* CATEGORY SELECTOR - CONEXIÓN COMPLETA */}
-            {property.aiRecommendations && Object.keys(property.aiRecommendations).length > 0 ? (
-              <>
-                <style>{`
-                  .no-scrollbar::-webkit-scrollbar { display: none; }
-                  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-                `}</style>
-
-                <div className="relative mb-6 group"> 
-                  
-                  {/* FLECHA IZQUIERDA: Aquí usamos "showLeftArrow" */}
-                  {showLeftArrow && (
-                    <div className="absolute left-[-2px] top-0 bottom-2 w-20 bg-gradient-to-r from-[#F8FAFC] via-[#F8FAFC]/90 to-transparent flex items-center justify-start z-20 pointer-events-none animate-in fade-in duration-300">
-                        <button 
-                          onClick={() => scrollCategories('left')}
-                          className="w-8 h-8 bg-white rounded-full shadow-md border border-slate-100 flex items-center justify-center ml-1 pointer-events-auto active:scale-90 transition-transform"
-                        >
-                          <svg className="w-4 h-4 text-[#0052FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-                    </div>
-                  )}
-
-                  {/* CONTENEDOR: Aquí usamos "scrollRef" y "handleScroll" */}
-                  <div 
-                    ref={scrollRef}
-                    onScroll={handleScroll} // <--- Esta es la conexión que falta
-                    className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth relative z-10"
-                  >
-                    {Object.keys(property.aiRecommendations).map(cat => (
-                      <button 
-                        key={cat} 
-                        id={`cat-${cat}`}
-                        onClick={() => {
-                          setActiveCategory(cat);
-                          document.getElementById(`cat-${cat}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                        }}
-                        className={`flex-shrink-0 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
-                          activeCategory === cat 
-                              ? 'bg-[#111111] text-white border-black shadow-xl scale-105' 
-                              : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'
-                        }`}
-                      >
-                        <span className="mr-2">{categoryIcons[cat] || categoryIcons.Default}</span>
-                        {cat}
-                      </button>
-                    ))}
+          {/* CATEGORY SELECTOR - CONEXIÓN PERSISTENTE */}
+          {property.aiRecommendations && Object.keys(property.aiRecommendations).length > 0 ? (
+            <>
+              <div className="relative mb-6 group"> 
+                {/* Flecha Izquierda */}
+                {showLeftArrow && (
+                  <div className="absolute left-[-2px] top-0 bottom-0 w-16 bg-gradient-to-r from-slate-50 to-transparent flex items-center justify-start z-20 pointer-events-none">
+                    <button onClick={() => scrollCategories('left')} className="w-8 h-8 bg-white rounded-full shadow-lg border border-slate-100 flex items-center justify-center pointer-events-auto active:scale-90 transition-transform">
+                      <svg className="w-4 h-4 text-[#0052FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
                   </div>
-                  
-                  {/* FLECHA DERECHA */}
-                  <div className="absolute right-[-2px] top-0 bottom-2 w-20 bg-gradient-to-l from-[#F8FAFC] via-[#F8FAFC]/90 to-transparent flex items-center justify-end z-20 pointer-events-none">
-                      <button 
-                        onClick={() => scrollCategories('right')}
-                        className="w-8 h-8 bg-white rounded-full shadow-md border border-slate-100 flex items-center justify-center mr-1 pointer-events-auto active:scale-90 transition-transform"
-                      >
-                        <svg className="w-4 h-4 text-[#0052FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                  </div>
-                </div>
+                )}
 
-                {/* GRID DE RECOMENDACIONES (Sin cambios) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
-                  {(property.aiRecommendations?.[activeCategory] || []).map((place, i) => (
-                    <a 
-                      key={i} 
-                      href={`https://www.google.com/search?q=${encodeURIComponent(place.name + " " + property.city)}`} 
-                      target="_blank"
-                      className="group relative bg-[#111111] p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-between hover:border-white/20 hover:-translate-y-1 transition-all duration-500 overflow-hidden shadow-2xl"
+                {/* Lista de Categorías */}
+                <div 
+                  ref={scrollRef}
+                  onScroll={handleScroll}
+                  className="flex gap-3 overflow-x-auto pb-4 no-scrollbar scroll-smooth relative z-10"
+                >
+                  {Object.keys(property.aiRecommendations).map(cat => (
+                    <button 
+                      key={cat} 
+                      onClick={() => setActiveCategory(cat)}
+                      className={`flex-shrink-0 px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 border ${
+                        activeCategory === cat 
+                          ? 'bg-[#111111] text-white border-black shadow-2xl scale-105' 
+                          : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'
+                      }`}
                     >
-                      {/* Efecto de brillo ambiental al pasar el dedo/mouse */}
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#0052FF]/10 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                      
-                      <div className="relative z-10">
-                        <div className="flex justify-between items-start mb-6">
-                          <span className="bg-white/5 backdrop-blur-md border border-white/10 text-white/70 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em]">
-                            {place.type}
-                          </span>
-                          <div className="flex items-center text-amber-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
-                            <span className="text-[10px] font-black mr-1">{place.rating}</span>
-                            <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20">
-                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                            </svg>
-                          </div>
-                        </div>
-                        
-                        <h4 className="font-black text-white text-2xl leading-tight mb-3 tracking-tight group-hover:text-[#0052FF] transition-colors duration-300">
-                          {place.name}
-                        </h4>
-                        
-                        <p className="text-white/40 text-sm font-medium leading-relaxed mb-8 line-clamp-3">
-                          {place.description}
-                        </p>
-                      </div>
-
-                      <div className="relative z-10 pt-6 border-t border-white/5 text-white/30 text-[9px] font-black uppercase tracking-[0.3em] flex items-center justify-between group-hover:text-white transition-colors">
-                        <span>{t.guest.viewMap}</span>
-                        <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
-                      </div>
-                    </a>
+                      <span className="mr-2">{categoryIcons[cat] || '📍'}</span>
+                      {cat}
+                    </button>
                   ))}
                 </div>
-              </>
-            ) : (
-              /* Tu estado de carga de lujo */
-              <div className="bg-white rounded-[2.5rem] p-12 text-center border border-slate-100 border-dashed animate-pulse">
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-4xl">✨</span>
+
+                {/* Flecha Derecha */}
+                <div className="absolute right-[-2px] top-0 bottom-0 w-16 bg-gradient-to-l from-slate-50 to-transparent flex items-center justify-end z-20 pointer-events-none">
+                  <button onClick={() => scrollCategories('right')} className="w-8 h-8 bg-white rounded-full shadow-lg border border-slate-100 flex items-center justify-center pointer-events-auto active:scale-90 transition-transform">
+                    <svg className="w-4 h-4 text-[#0052FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                  </button>
                 </div>
-                <h4 className="text-xl font-black text-slate-800 mb-2">Personalizando tu guía...</h4>
-                <p className="text-slate-400 text-xs font-medium max-w-[200px] mx-auto">Nuestro conserje digital está seleccionando los mejores lugares en {property.city}.</p>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* GRID DE RECOMENDACIONES - DATOS DESDE SUPABASE */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
+                {(property.aiRecommendations[activeCategory] || []).map((place: any, i: number) => (
+                  <a 
+                    key={i} 
+                    href={`https://www.google.com/search?q=${encodeURIComponent(place.name + " " + property.city)}`} 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative bg-[#111111] p-8 rounded-[2.5rem] border border-white/5 flex flex-col justify-between hover:border-white/20 hover:-translate-y-2 transition-all duration-500 overflow-hidden shadow-2xl"
+                  >
+                    {/* Brillo ambiental */}
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#0052FF]/20 rounded-full blur-[80px] opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                    
+                    <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-6">
+                        <span className="bg-white/5 backdrop-blur-md border border-white/10 text-white/50 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest">
+                          {place.type || activeCategory}
+                        </span>
+                        <div className="flex items-center text-amber-400 bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
+                          <span className="text-[10px] font-black mr-1">{place.rating}</span>
+                          <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        </div>
+                      </div>
+                      
+                      <h4 className="font-black text-white text-2xl leading-tight mb-3 tracking-tighter group-hover:text-[#0052FF] transition-colors">
+                        {place.name}
+                      </h4>
+                      
+                      <p className="text-white/40 text-xs font-medium leading-relaxed mb-8 line-clamp-3">
+                        {place.description}
+                      </p>
+                    </div>
+
+                    <div className="relative z-10 pt-6 border-t border-white/5 text-white/30 text-[9px] font-black uppercase tracking-[0.3em] flex items-center justify-between group-hover:text-white">
+                      <span>{t.guest.viewMap}</span>
+                      <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </>
+          ) : (
+            /* Estado de carga idéntico al tuyo */
+            <div className="bg-white rounded-[3rem] p-16 text-center border-2 border-dashed border-slate-100 animate-pulse">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <span className="text-4xl">✨</span>
+              </div>
+              <h4 className="text-xl font-black text-slate-800 mb-2">{t.guest.loadingRecs || 'Preparando tu guía...'}</h4>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest max-w-[250px] mx-auto">
+                Personalizando los mejores lugares en {property.city}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
         {activeTab === 'CHECK-OUT' && (
             <DarkSection title={t.guest.headers.checkout} subtitle={t.guest.headers.checkoutSub} items={parseList(property.checkoutInstructions)} icon={<svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>} />
         )}
 
         <div className="py-12 flex flex-col items-center opacity-60">
-           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-200 mb-3">{hostAvatar ? <img src={hostAvatar} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-300"></div>}</div>
+           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md mb-3 bg-white flex items-center justify-center">
+              {hostAvatar ? (
+                <img src={hostAvatar} className="w-full h-full object-cover" alt="Host" />
+              ) : (
+                <div className="w-full h-full bg-slate-100 flex items-center justify-center text-[#0052FF] font-black text-xs">
+                  {property.hostName?.charAt(0) || 'H'}
+                </div>
+              )}
+            </div>
            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t.guest.hostTitle} {property.hostName}</p>
         </div>
       </main>

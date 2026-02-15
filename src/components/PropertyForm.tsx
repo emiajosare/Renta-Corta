@@ -9,7 +9,7 @@ import ImageUploader from './ImageUploader';
 
 interface PropertyFormProps {
   property: PropertySettings;
-  onSave: (prop: PropertySettings, access: AccessControl) => void;
+  onSave: (prop: PropertySettings, access: AccessControl, newAvatarUrl?: string) => void;
   onBack: () => void;
   language: Language;
   onToggleLanguage: () => void;
@@ -46,7 +46,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
   // --- CARGA INICIAL DESDE NUBE (Prioridad Supabase) ---
   useEffect(() => {
-    const loadInitialData = async () => {
+   const loadInitialData = async () => {
+    // 🟢 VALIDACIÓN: Solo buscamos si el ID es un UUID real (no empieza con 'p')
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id);
+    
+    if (!isUUID) {
+      console.log("ID temporal detectado, saltando consulta a Supabase");
+      return; 
+    }
       // 1. Cargar registros de acceso desde Supabase
       const { data: records, error } = await supabase
         .from('access_control')
@@ -71,11 +78,15 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
       }
 
       // 2. Cargar Avatar del Dueño
-      const rawOwners = localStorage.getItem(STORAGE_KEYS.OWNERS);
-      if (rawOwners) {
-        const owners: Owner[] = JSON.parse(rawOwners);
-        const owner = owners.find(o => o.id === property.ownerId);
-        if (owner?.avatarUrl) setOwnerAvatar(owner.avatarUrl);
+      // 🟢 CARGA REAL DEL AVATAR DESDE SUPABASE
+      const { data: ownerData } = await supabase
+        .from('owners')
+        .select('avatar_url')
+        .eq('id', property.ownerId)
+        .single();
+      
+      if (ownerData?.avatar_url) {
+        setOwnerAvatar(ownerData.avatar_url);
       }
     };
 
@@ -96,7 +107,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         // Para evitar el error 400 en localhost mientras pruebas:
         // propData.ownerId = "un-uuid-valido-de-tu-tabla-owners";
       }
-      const propertyPayload = {
+      const propertyPayload: any = {
         owner_id: propData.ownerId,
         building_name: propData.buildingName,
         host_name: propData.hostName,
@@ -118,9 +129,15 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         ai_recommendations: propData.aiRecommendations
       };
 
+      // 🟢 SI EL ID ES UN UUID (Propiedad existente), LO INCLUIMOS PARA QUE SE ACTUALICE
+      // SI NO, LO DEJAMOS FUERA PARA QUE SUPABASE CREE UNO NUEVO
+      if (isUUID(propData.id)) {
+        propertyPayload.id = propData.id;
+      }
+
       const { data: savedProp, error: propError } = await supabase
         .from('properties')
-        .upsert(propertyPayload, { onConflict: 'building_name, owner_id' })
+        .upsert(propertyPayload, { onConflict: 'id' }) // Usamos 'id' como conflicto es más estándar
         .select()
         .single();
 
@@ -236,68 +253,66 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     setAccessData(prev => ({ ...prev, [name]: value }));
   };
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  // 🟢 1. VALIDACIÓN DE CAMPOS OBLIGATORIOS (Diseño y Control)
-  const newErrors: string[] = [];
-  
-  // Usamos 'as any' para que TypeScript no se queje de las llaves de traducción (image_482f22.png)
-  const errs = t.owner.errors as any;
-  
-  if (!formData.buildingName.trim()) newErrors.push(errs?.buildingName || "Nombre del edificio obligatorio");
-  if (!formData.address.trim()) newErrors.push(errs?.address || "Dirección obligatoria");
-  if (!formData.city.trim()) newErrors.push(errs?.city || "Ciudad obligatoria");
-  if (!formData.capacity.trim() || formData.capacity === '0') newErrors.push(errs?.capacity || "Capacidad obligatoria");
-  if (formData.rooms < 1) newErrors.push(errs?.rooms || "Mínimo 1 habitación");
-
-  if (newErrors.length > 0) {
-    setPropertyErrors(newErrors);
-    if (activeTab !== 'PROPIEDAD') setActiveTab('PROPIEDAD');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    return; 
-  }
-  
-  setPropertyErrors([]);
-  setIsSaving(true);
-
-  try {
-    let currentPropData = { ...formData };
+    // 🟢 1. VALIDACIÓN DE CAMPOS OBLIGATORIOS (Diseño y Control)
+    const newErrors: string[] = [];
+    const errs = t.owner.errors as any;
     
-    // 🟢 2. LÓGICA INTELIGENTE DE IA (Optimización)
-    const addressChanged = currentPropData.address !== property.address || currentPropData.city !== property.city;
-    const hasNoRecs = !currentPropData.aiRecommendations || Object.keys(currentPropData.aiRecommendations).length === 0;
+    if (!formData.buildingName.trim()) newErrors.push(errs?.buildingName || "Nombre del edificio obligatorio");
+    if (!formData.address.trim()) newErrors.push(errs?.address || "Dirección obligatoria");
+    if (!formData.city.trim()) newErrors.push(errs?.city || "Ciudad obligatoria");
+    if (!formData.capacity.trim() || formData.capacity === '0') newErrors.push(errs?.capacity || "Capacidad obligatoria");
+    if (formData.rooms < 1) newErrors.push(errs?.rooms || "Mínimo 1 habitación");
 
-    if (addressChanged || hasNoRecs) {
-      const coords = await getCoordinates(currentPropData.address, currentPropData.city);
-      if (coords) {
-        currentPropData.location_lat = coords.lat;
-        currentPropData.location_lng = coords.lng;
+    if (newErrors.length > 0) {
+      setPropertyErrors(newErrors);
+      if (activeTab !== 'PROPIEDAD') setActiveTab('PROPIEDAD');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return; 
+    }
+    
+    setPropertyErrors([]);
+    setIsSaving(true); // Usamos tu estado original
+
+    try {
+      let currentPropData = { ...formData };
+      
+      // 🕵️ COMPROBACIÓN INTELIGENTE DE DIRECCIÓN
+      // Comparamos contra 'property' (tus datos iniciales) para ver si hubo cambios reales
+      const addressChanged = !property.id || 
+                            currentPropData.address !== property.address || 
+                            currentPropData.city !== property.city;
+
+      const needsAIUpdate = addressChanged || !currentPropData.aiRecommendations;
+
+      if (needsAIUpdate) {
+        console.log("🤖 Generando/Actualizando Guía Turística Persistente...");
+        
+        // 1. Obtenemos Coordenadas (Para el mapa)
+        const coords = await getCoordinates(currentPropData.address, currentPropData.city);
+        
+        if (coords) {
+          currentPropData.location_lat = Number(coords.lat);
+          currentPropData.location_lng = Number(coords.lng);
+        }
+
+        // 2. Obtenemos Recomendaciones Reales (El nuevo motor validado)
         const aiRecs = await getNearbyPlaces(currentPropData.city, currentPropData.address);
-        currentPropData.aiRecommendations = aiRecs;
+        if (aiRecs) {
+          currentPropData.aiRecommendations = aiRecs;
+        }
       }
 
-    }
+      // 🟢 3. DEFINICIÓN DE finalAccess (Sincronización)
+      const finalAccess: AccessControl = { 
+        ...accessData, 
+        propertyId: property.id,
+        bookingCode: accessData.bookingCode.trim().toUpperCase()
+      };
 
-    // 🟢 3. DEFINICIÓN DE finalAccess (Sincronización)
-    const finalAccess: AccessControl = { 
-      ...accessData, 
-      propertyId: property.id,
-      bookingCode: accessData.bookingCode.trim().toUpperCase()
-    };
-    
-    // 🟢4-1. VALIDACIÓN DE CAMPOS (Corrige image_4823f7 e image_482f22)
-      const newErrors: string[] = [];
-      // Forzamos 'as any' para que acepte buildingName, address y city
-      const errs = t.owner.errors as any; 
-
-      if (!formData.buildingName.trim()) newErrors.push(errs?.buildingName || "Nombre obligatorio");
-      if (!formData.address.trim()) newErrors.push(errs?.address || "Dirección obligatoria");
-      if (!formData.city.trim()) newErrors.push(errs?.city || "Ciudad obligatoria");
-
-      // ... (resto de validaciones de capacidad y habitaciones)
-
-      // 🟢 4-2. VALIDACIÓN DE FECHAS (Corrige image_2acac9)
+      // 🟢 4. VALIDACIÓN DE FECHAS (Tu lógica original de Reservas)
       if (finalAccess.guestName.trim() !== '' && finalAccess.guestName !== 'Sin Nombre') {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -306,18 +321,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         const timeIn = finalAccess.checkIn ? new Date(finalAccess.checkIn + 'T00:00:00').getTime() : 0;
         const timeOut = finalAccess.checkOut ? new Date(finalAccess.checkOut + 'T00:00:00').getTime() : 0;
 
-        const newDateErrors: any = {}; // Usamos any para evitar errores de tipo aquí también
+        const newDateErrors: any = {};
 
         if (timeIn > 0 && timeIn < todayTime) {
-          // 🟢 Aquí se van las líneas rojas de checkInPast
           newDateErrors.checkIn = errs?.checkInPast || "La fecha no puede ser anterior a hoy"; 
         }
-
         if (timeOut > 0 && timeOut < todayTime) {
-          // 🟢 Aquí se van las líneas rojas de checkOutPast
           newDateErrors.checkOut = errs?.checkOutPast || "La fecha no puede ser anterior a hoy";
         }
-
         if (timeIn > 0 && timeOut > 0 && timeOut <= timeIn) {
           newDateErrors.checkOut = errs?.dateOrder || "La salida debe ser posterior a la entrada";
         }
@@ -330,57 +341,60 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         }
       }
 
-        setDateErrors({}); // Limpiar si todo está bien
+      setDateErrors({}); 
 
-    // 🟢 5. GUARDADO EN SUPABASE Y SINCRONIZACIÓN DE IDs
-    const realId = await saveToSupabase(currentPropData, finalAccess);
-    
-    if (realId) {
-      currentPropData.id = realId;
-      finalAccess.propertyId = realId;
-      setFormData(currentPropData); 
-      
-      if (finalAccess.guestName.trim() !== '' && finalAccess.guestName !== 'Sin Nombre') {
-        setAllAccessRecords(prev => {
-          const exists = prev.find(a => a.bookingCode === finalAccess.bookingCode);
-          if (exists) return prev.map(a => a.bookingCode === finalAccess.bookingCode ? finalAccess : a);
-          return [...prev, finalAccess];
-        });
-        setIsBookingUnlocked(true);
+      // 🟢 5. ACTUALIZACIÓN DE AVATAR DEL DUEÑO
+      if (ownerAvatar) {
+        await supabase
+          .from('owners')
+          .update({ avatar_url: ownerAvatar })
+          .eq('id', formData.ownerId);
       }
+
+      // 🟢 6. GUARDADO EN SUPABASE (Usando tu función saveToSupabase)
+      const realId = await saveToSupabase(currentPropData, finalAccess);
+      
+      if (realId) {
+        currentPropData.id = realId;
+        finalAccess.propertyId = realId;
+        setFormData(currentPropData); 
+        
+        if (finalAccess.guestName.trim() !== '' && finalAccess.guestName !== 'Sin Nombre') {
+          setAllAccessRecords(prev => {
+            const exists = prev.find(a => a.bookingCode === finalAccess.bookingCode);
+            if (exists) return prev.map(a => a.bookingCode === finalAccess.bookingCode ? finalAccess : a);
+            return [...prev, finalAccess];
+          });
+          setIsBookingUnlocked(true);
+        }
+      }
+
+      // 🟢 7. ÉXITO Y NAVEGACIÓN AUTOMÁTICA
+      setSaveSuccess(true);
+      onSave(currentPropData, finalAccess, ownerAvatar);
+
+      setTimeout(() => {
+        setSaveSuccess(false);
+        // Navegación automática entre pestañas para flujo Luxury
+        if (activeTab === 'PROPIEDAD') setActiveTab('MULTIMEDIA');
+        else if (activeTab === 'MULTIMEDIA') setActiveTab('GUIAS');
+        else if (activeTab === 'GUIAS') setActiveTab('RESERVAS');
+        else onBack(); 
+      }, 1000);
+
+    } catch (err) {
+      console.error("Error completo en sincronización:", err);
+      let errorMessage = "Error desconocido";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'object' && err !== null) {
+        errorMessage = (err as any).message || JSON.stringify(err);
+      }
+      alert(`Error de base de datos: ${errorMessage}`);
+    } finally {
+      setIsSaving(false); 
     }
-
-    // 🟢 6. ÉXITO Y NAVEGACIÓN AUTOMÁTICA (Diseño Luxury)
-    setSaveSuccess(true);
-    onSave(currentPropData, finalAccess);
-
-    setTimeout(() => {
-      setSaveSuccess(false);
-      // Salto automático entre pestañas para mejorar la experiencia de usuario
-      if (activeTab === 'PROPIEDAD') setActiveTab('MULTIMEDIA');
-      else if (activeTab === 'MULTIMEDIA') setActiveTab('GUIAS');
-      else if (activeTab === 'GUIAS') setActiveTab('RESERVAS');
-      else onBack(); 
-    }, 1000);
-
-  } catch (err) {
-  console.error("Error completo en sincronización:", err);
-  
-  // 🟢 SOLUCIÓN AL [object Object]: Extraemos el mensaje real
-  let errorMessage = "Error desconocido";
-  
-  if (err instanceof Error) {
-    errorMessage = err.message;
-  } else if (typeof err === 'object' && err !== null) {
-    // Si es un objeto de Supabase, intentamos sacar el campo 'message'
-    errorMessage = (err as any).message || JSON.stringify(err);
-  }
-
-  alert(`Error de base de datos: ${errorMessage}`);
-} finally {
-  setIsSaving(false); 
-}
-};
+  };
 
   // Clases CSS consistentes
   const inputClass = "w-full px-6 py-4 rounded-2xl border-[1.5px] border-[#CBD5E1] bg-[#F8FAFC] text-[#212121] text-base focus:bg-white focus:border-[#0052FF] outline-none transition-all font-medium";
@@ -454,7 +468,17 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
             </div>
             <div><label className={labelClass}>{t.owner.form.hostName}</label><input name="hostName" value={formData.hostName} onChange={handleChange} className={inputClass} /></div>
             <div><label className={labelClass}>{t.owner.form.city}</label><input name="city" value={formData.city} onChange={handleChange} className={inputClass} /></div>
-            
+            {/* 🟢 NUEVO: Campo de WhatsApp de Soporte */}
+            <div className="md:col-span-2">
+              <label className={labelClass}>WhatsApp de Soporte (Ej: 573001234567)</label>
+              <input 
+                name="whatsappContact" 
+                value={formData.whatsappContact} 
+                onChange={handleChange} 
+                className={inputClass} 
+                placeholder="Código de país + número sin espacios ni +"
+              />
+            </div>
             <div className="md:col-span-2 grid grid-cols-3 gap-6">
               <div><label className={labelClass}>{t.owner.form.capacity}</label><input name="capacity" value={formData.capacity} onChange={handleChange} className={inputClass} /></div>
               <div><label className={labelClass}>{t.owner.form.rooms}</label><input type="number" name="rooms" value={formData.rooms} onChange={handleChange} className={inputClass} /></div>
@@ -569,10 +593,31 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
           {/* LAS PESTAÑAS MULTIMEDIA Y GUIAS SE MANTIENEN IGUAL QUE TU LÓGICA ORIGINAL */}
           {activeTab === 'MULTIMEDIA' && (
              <div className="space-y-12 animate-in fade-in duration-500">
-                <ImageUploader label={t.owner.form.avatarLabel} currentUrl={ownerAvatar} isAvatar={true} contextName='avatar-uploader' onUploadSuccess={(url) => setOwnerAvatar(url)} onDelete={() => setOwnerAvatar('')} />
+                <ImageUploader 
+                  label={t.owner.form.avatarLabel} 
+                  currentUrl={ownerAvatar} 
+                  isAvatar={true} 
+                  contextName='avatar-uploader' 
+                  onUploadSuccess={(url) => setOwnerAvatar(url)} 
+                  onDelete={() => setOwnerAvatar('')} 
+                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <ImageUploader label={t.owner.form.welcomeLabel} currentUrl={formData.welcomeImageUrl} contextName='welcomn-uploader' onUploadSuccess={(url) => setFormData({...formData, welcomeImageUrl: url})} onDelete={() => setFormData({...formData, welcomeImageUrl: ''})} />
-                   <ImageUploader label={t.owner.form.dashboardLabel} currentUrl={formData.stayImageUrl} contextName='stay-uploader' onUploadSuccess={(url) => setFormData({...formData, stayImageUrl: url})} onDelete={() => setFormData({...formData, stayImageUrl: ''})} />
+                  <ImageUploader 
+                    label={t.owner.form.welcomeLabel} 
+                    currentUrl={formData.welcomeImageUrl} 
+                    contextName='welcome-uploader' // Corregí un typo aquí ('welcomn' -> 'welcome')
+                    // Usamos 'prev' para asegurar que no se mezclen los estados
+                    onUploadSuccess={(url) => setFormData(prev => ({ ...prev, welcomeImageUrl: url }))} 
+                    onDelete={() => setFormData(prev => ({ ...prev, welcomeImageUrl: ' ' }))} 
+                  />
+                   <ImageUploader 
+                    label={t.owner.form.dashboardLabel} 
+                    currentUrl={formData.stayImageUrl} 
+                    contextName='stay-uploader'
+                    // Usamos 'prev' aquí también para aislar esta actualización
+                    onUploadSuccess={(url) => setFormData(prev => ({ ...prev, stayImageUrl: url }))} 
+                    onDelete={() => setFormData(prev => ({ ...prev, stayImageUrl: ' ' }))} 
+                  />
                 </div>
              </div>
           )}

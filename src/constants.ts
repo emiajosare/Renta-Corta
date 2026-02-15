@@ -18,7 +18,12 @@ export const MOCK_OWNERS: Owner[] = [
     name: 'Admin Principal', 
     token: 'ADMIN2024', 
     tokenPersonalized: false,
-    avatarUrl: 'https://i.postimg.cc/nrfLXyq3/David.png'
+    avatarUrl: 'https://i.postimg.cc/nrfLXyq3/David.png',
+    
+    // 🟢 AÑADIMOS ESTO PARA ELIMINAR EL ERROR ROJO:
+    email: 'admin@ejemplo.com', 
+    master_pin: 'ADMIN2024', // Lo dejamos igual al token para que no te bloquee
+    is_first_login: true     // 🚩 IMPORTANTE: Ponlo en TRUE para probar el flujo de seguridad
   }
 ];
 

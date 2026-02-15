@@ -9,6 +9,11 @@ export interface Owner {
   token: string;
   tokenPersonalized: boolean;
   avatarUrl?: string; // Mantenido: perfil
+  // 🟢 NUEVOS CAMPOS (Sincronizados con tu imagen de Supabase)
+  email: string;             
+  master_pin: string;        
+  is_first_login: boolean;
+  role: 'owner' | 'superadmin'; // Nuevo campo
 }
 
 export interface PropertySettings {
@@ -52,8 +57,10 @@ export const AppView = {
   OWNER_LOGIN: 'OWNER_LOGIN',
   PROPERTY_LIST: 'PROPERTY_LIST',
   PROPERTY_DETAIL: 'PROPERTY_DETAIL',
+  OWNER_DASHBOARD: 'OWNER_DASHBOARD', // 🟢 AÑADE ESTA LÍNEA
   GUEST_LOGIN: 'GUEST_LOGIN',
   GUEST_DASHBOARD: 'GUEST_DASHBOARD',
+  SUPER_ADMIN_PANEL: 'SUPER_ADMIN_PANEL',
   INITIAL_SECURITY: 'INITIAL_SECURITY'
 } as const;
 

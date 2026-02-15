@@ -10,6 +10,7 @@ import GuestDashboard from './components/GuestDashboard';
 import InitialSecurityConfig from './components/InitialSecurityConfig';
 import { translations } from './translations';
 import { supabase } from './lib/supabaseClient';
+import SuperAdminPanel from './components/SuperAdminPanel'; // 🟢 Verifica que la ruta sea correcta
 
 const App: React.FC = () => {
   const [owners, setOwners] = useState<Owner[]>([]);
@@ -51,17 +52,107 @@ const App: React.FC = () => {
 
   const t = translations[language];
 
-  const handleOwnerLogin = (token: string) => {
-    // Validación tolerante a espacios
-    const cleanToken = token.trim();
-    const owner = owners.find(o => o.token === cleanToken);
-    
-    if (owner) {
-      setCurrentOwner(owner);
-      setError('');
-      if (!owner.tokenPersonalized) setView(AppView.INITIAL_SECURITY);
-      else setView(AppView.PROPERTY_LIST);
-    } else setError('Token inválido.');
+  const handleOwnerLogin = async (emailInput: string, pinOrToken: string) => {
+    // 1. Limpieza de entradas y reseteo de error
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const cleanValue = pinOrToken.trim();
+    setError('');
+
+    // Función auxiliar interna para procesar el éxito del login
+    const processLogin = async (owner: any) => {
+      const formattedOwner: Owner = {
+        id: owner.id,
+        name: owner.name,
+        email: owner.email || '',
+        master_pin: owner.master_pin || '',
+        token: owner.token,
+        is_first_login: owner.is_first_login,
+        tokenPersonalized: !owner.is_first_login,
+        role: owner.role || 'owner',
+        avatarUrl: owner.avatar_url // Mapeo de snake_case a camelCase
+      };
+
+      setCurrentOwner(formattedOwner);
+
+      // 🚀 LOGRO: Descargamos las propiedades reales de este dueño de Supabase
+      const { data: userProps, error: propsError } = await supabase
+        .from('properties')
+        .select('*')
+        .eq('owner_id', owner.id);
+
+      if (!propsError && userProps) {
+        const formattedProps = userProps.map(p => ({
+          ...p,
+          // Traducimos de snake_case (DB) a camelCase (App)
+          ownerId: p.owner_id,
+          buildingName: p.building_name,
+          hostName: p.host_name,
+          wifiSSID: p.wifi_ssid,           // 🟢 AÑADIR ESTE
+          wifiPass: p.wifi_pass,           // 🟢 AÑADIR ESTE
+          checkoutInstructions: p.checkout_instructions, // 🟢 AÑADIR ESTE
+          welcomeImageUrl: p.welcome_image_url,
+          stayImageUrl: p.stay_image_url,
+          whatsappContact: p.whatsapp_contact,
+          aiRecommendations: p.ai_recommendations
+        }));
+
+        setProperties(formattedProps); // 👈 Actualiza la lista visual
+  }
+      
+      // 🟢 DIRECCIONAMIENTO SEGÚN ROL
+      if (formattedOwner.role === 'superadmin') {
+        setView(AppView.SUPER_ADMIN_PANEL);
+      } else if (formattedOwner.is_first_login) {
+        setView(AppView.INITIAL_SECURITY);
+      } else {
+        setView(AppView.PROPERTY_LIST);
+      }
+    };
+
+    try {
+      // 🔍 PASO 1: ¿Es un Token de Invitación nuevo?
+      // Buscamos si el 'cleanValue' coincide con un token de alguien que no ha entrado nunca.
+      const { data: inviteOwner, error: inviteError } = await supabase
+        .from('owners')
+        .select('*')
+        .eq('token', cleanValue)
+        .eq('is_first_login', true)
+        .maybeSingle(); // Evita el error 406 si no encuentra nada
+
+      if (inviteOwner) {
+        await processLogin(inviteOwner);
+        return;
+      }
+
+      // 🔍 PASO 2: Si no fue invitación, ¿es un Login normal de administrador registrado?
+      // Aquí validamos la pareja EMAIL + PIN MAESTRO.
+      const { data: registeredOwner, error: regError } = await supabase
+        .from('owners')
+        .select('*')
+        .eq('email', cleanEmail)
+        .eq('master_pin', cleanValue)
+        .maybeSingle();
+
+      if (registeredOwner) {
+        await processLogin(registeredOwner);
+      } else {
+        // ❌ Error de credenciales (Bilingüe)
+        setError(
+          language === 'es' 
+            ? 'Credenciales o Token no válidos. Verifique e intente de nuevo.' 
+            : 'Invalid Credentials or Token. Please check and try again.'
+        );
+      }
+
+    } catch (err) {
+      console.error("Error crítico en login:", err);
+      // ❌ Error de conexión (Bilingüe)
+      setError(
+        language === 'es' 
+          ? 'Error de conexión con el servidor.' 
+          : 'Server connection error.'
+      );
+    }
   };
 
   const handleTokenPersonalization = (newToken: string) => {
@@ -72,24 +163,30 @@ const App: React.FC = () => {
     handleLogout();
   };
 
-const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
-  // Creamos el objeto formateado asegurando que issuedAt sea un string
-  const formattedGuest: AccessControl = {
-    ...guest,
-    checkIn: guest.checkIn,
-    checkOut: guest.checkOut,
-    // Calculamos el tiempo como número pero lo guardamos como string para cumplir con la interfaz
-    issuedAt: (guest.issuedAt ? new Date(guest.issuedAt).getTime() : Date.now()).toString()
-  };
+  // Ubicación: App.tsx (Línea 145 aprox.)
+  const handleGuestLogin = (property: any, guest: AccessControl) => {
+    // 🟢 TRADUCCIÓN AGRESIVA: 
+    // Tomamos los nombres de la DB y los convertimos a los nombres que usa tu diseño.
+    const formattedProperty: PropertySettings = {
+      ...property,
+      welcomeImageUrl: property.welcome_image_url || property.welcomeImageUrl || '',
+      stayImageUrl: property.stay_image_url || property.stayImageUrl || '',
+      whatsappContact: property.whatsapp_contact || property.whatsappContact || ''
+    };
 
-  // Seteamos los estados (Ahora sin errores de tipo)
-  setCurrentGuest(formattedGuest);
-  setSelectedProperty(property);
-  
-  // Cambiamos la vista y limpiamos errores
-  setView(AppView.GUEST_DASHBOARD);
-  setError('');
-};
+    // También aseguramos que el tiempo de entrada sea un string para el temporizador
+    const formattedGuest: AccessControl = {
+      ...guest,
+      issuedAt: (guest.issuedAt ? new Date(guest.issuedAt).getTime() : Date.now()).toString()
+    };
+
+    // Guardamos en el estado los datos ya "traducidos"
+    setCurrentGuest(formattedGuest);
+    setSelectedProperty(formattedProperty);
+    
+    setView(AppView.GUEST_DASHBOARD);
+    setError('');
+  };
 
 
  const handleCheckIn = async (accessId: string) => {
@@ -137,7 +234,7 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
   }
 };
 
-      const handleSaveProperty = (updatedProp: PropertySettings, updatedAccess: AccessControl) => {
+      const handleSaveProperty = (updatedProp: PropertySettings, updatedAccess: AccessControl, newAvatarUrl?: string ) => {
       setProperties(prevProps => {
         // Buscamos si ya existe por el nuevo ID
         const exists = prevProps.some(p => p.id === updatedProp.id);
@@ -165,7 +262,13 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
         localStorage.setItem(STORAGE_KEYS.ACCESS_CONTROL, JSON.stringify(newAccess));
         return newAccess;
       });
-
+      // Si el dueño actual es el que está editando, refrescamos su avatar en pantalla
+      if (currentOwner && newAvatarUrl) {
+        setCurrentOwner({
+          ...currentOwner,
+          avatarUrl: newAvatarUrl // Asegúrate de que esta variable llegue o se tome del estado
+        });
+      }
       // Actualizamos la propiedad seleccionada con su nuevo UUID oficial
       setSelectedProperty(updatedProp);
     };
@@ -236,7 +339,7 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
 
   const bgImage = useMemo(() => {
     const featuredProperty = selectedProperty || properties[0];
-    return featuredProperty?.welcomeImageUrl || 'https://images.unsplash.com/photo-1549517045-bc93de075e53?auto=format&fit=crop&w=1600&q=80';
+    return featuredProperty?.stayImageUrl || 'https://images.unsplash.com/photo-1549517045-bc93de075e53?auto=format&fit=crop&w=1600&q=80';
   }, [selectedProperty, properties]);
 
   return (
@@ -344,27 +447,95 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
             </div>
         )}
         
-        {view === AppView.INITIAL_SECURITY && currentOwner && <InitialSecurityConfig owner={currentOwner} onUpdateToken={handleTokenPersonalization} />}
-        
+        {view === AppView.INITIAL_SECURITY && currentOwner && (
+          <InitialSecurityConfig 
+            owner={currentOwner} 
+            language={language}
+            onConfigSuccess={(updatedOwner) => {
+              // 1. Actualizamos el estado global del dueño con los nuevos datos (Email/PIN)
+              setCurrentOwner(updatedOwner);
+              // 2. Lo enviamos directamente al Panel de Control (Dashboard)
+              setView(AppView.PROPERTY_LIST);
+            }} 
+          />
+        )}
+                
         {view === AppView.PROPERTY_LIST && currentOwner && (
-          <div className="py-8 sm:py-12 px-4 sm:px-6 max-w-7xl mx-auto animate-in fade-in duration-700">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-8 sm:mb-10 gap-4">
-              <h2 className="text-xl font-black text-slate-400 uppercase tracking-widest text-center sm:text-left">{t.owner.listTitle}</h2>
-              <button onClick={createNewProperty} className="w-full sm:w-auto bg-[#0052FF] text-white px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 transition-all">
+          <div className="py-12 sm:py-16 px-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            
+            {/* Encabezado Elegante */}
+            <div className="flex flex-col sm:flex-row justify-between items-end mb-12 gap-6 border-b border-slate-100 pb-8">
+              <div className="text-center sm:text-left">
+                <span className="text-[#0052FF] text-[10px] font-black tracking-[0.4em] uppercase mb-2 block">Gestión de Activos</span>
+                <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{t.owner.listTitle}</h2>
+              </div>
+              
+              <button 
+                onClick={createNewProperty} 
+                className="w-full sm:w-auto bg-[#0052FF] text-white px-10 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-2xl shadow-blue-500/30 hover:bg-blue-600 hover:-translate-y-1 active:scale-95 transition-all duration-300"
+              >
                 {t.owner.addProp}
               </button>
             </div>
-            {/* Grid Responsivo para Inmuebles */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
+
+            {/* Grid con Proporción de Video (16:9) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
               {properties.filter(p => p.ownerId === currentOwner.id).map(prop => (
-                <div key={prop.id} onClick={() => { setSelectedProperty(prop); setView(AppView.PROPERTY_DETAIL); }} className="group bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-2xl hover:-translate-y-2 cursor-pointer transition-all overflow-hidden">
-                  <div className="h-48 sm:h-44 bg-slate-100 bg-cover bg-center transition-transform group-hover:scale-105" style={{ backgroundImage: prop.stayImageUrl ? `url(${prop.stayImageUrl})` : '' }}></div>
-                  <div className="p-6 sm:p-8">
-                    <h3 className="font-black text-slate-800 text-lg sm:text-xl tracking-tight mb-1 truncate">{prop.buildingName}</h3>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{prop.city}</p>
+                <div 
+                  key={prop.id} 
+                  onClick={() => { setSelectedProperty(prop); setView(AppView.PROPERTY_DETAIL); }} 
+                  className="group bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-50 hover:shadow-[0_40px_80px_rgba(0,0,0,0.08)] hover:-translate-y-3 cursor-pointer transition-all duration-500 overflow-hidden"
+                >
+                  {/* Contenedor de Imagen con Aspect Ratio Fijo */}
+                  <div className="relative aspect-video overflow-hidden">
+                    <div 
+                      className="absolute inset-0 bg-slate-200 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" 
+                      style={{ 
+                        // Usamos stayImageUrl (que ahora ya viene traducida desde processLogin)
+                        backgroundImage: prop.stayImageUrl ? `url(${prop.stayImageUrl})` : '',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                      }}
+                    >
+                      {/* Overlay sutil para dar profundidad */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    </div>
+                    
+                    {/* Badge de Ciudad Flotante */}
+                    <div className="absolute top-5 right-5">
+                      <span className="bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-black text-slate-900 uppercase tracking-widest shadow-sm">
+                        {prop.city}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Información con Tipografía Refinada */}
+                  <div className="p-8 sm:p-10">
+                    <h3 className="font-black text-slate-900 text-2xl tracking-tighter mb-2 group-hover:text-[#0052FF] transition-colors duration-300">
+                      {prop.buildingName}
+                    </h3>
+                    <div className="flex items-center text-slate-400 space-x-2">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <p className="text-[11px] font-bold uppercase tracking-widest truncate">
+                        {prop.address}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
+
+              {/* Estado Vacío / Tarjeta de Ayuda si no hay propiedades */}
+              {properties.filter(p => p.ownerId === currentOwner.id).length === 0 && (
+                <div className="col-span-full py-20 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                    <span className="text-3xl">🏠</span>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800 mb-2">Comienza tu portafolio</h3>
+                  <p className="text-slate-400 text-sm max-w-xs mx-auto mb-8 font-medium">Aún no tienes inmuebles registrados. Crea el primero para empezar a recibir huéspedes.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -377,6 +548,11 @@ const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
                 onToggleLanguage={handleToggleLanguage}
             />
         )}
+
+        {view === AppView.SUPER_ADMIN_PANEL && (
+          <SuperAdminPanel onLogout={handleLogout} />
+        )}
+
         {view === AppView.GUEST_DASHBOARD && selectedProperty && currentGuest && (
           <GuestDashboard 
             property={selectedProperty} 

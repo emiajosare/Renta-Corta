@@ -1,53 +1,65 @@
+import { GoogleGenAI } from "@google/genai";
 
-// 🟢 PASO 1: Definimos la Guía de Emergencia fuera de la función
-// Esto asegura que esté disponible siempre, pase lo que pase.
-const FALLBACK_RECOMMENDATIONS = {
-  "Restaurantes": [
-    { "name": "Gastronomía Local", "type": "Recomendado", "rating": 4.8, "description": "Sabores auténticos recomendados por la casa.", "distance": "A 5 min" },
-    { "name": "Café del Barrio", "type": "Cafetería", "rating": 4.5, "description": "El mejor café artesanal cerca de ti.", "distance": "A 3 min" }
-  ],
-  "Cultura": [
-    { "name": "Museo de la Ciudad", "type": "Historia", "rating": 4.9, "description": "Una visita obligada para conocer la cultura local.", "distance": "A 10 min" },
-    { "name": "Galería de Arte", "type": "Arte", "rating": 4.7, "description": "Exposiciones locales contemporáneas.", "distance": "A 7 min" }
-  ],
-  "Naturaleza": [
-    { "name": "Parque Central", "type": "Parque", "rating": 4.6, "description": "Ideal para caminar y disfrutar del aire libre.", "distance": "A 8 min" },
-    { "name": "Mirador del Valle", "type": "Vistas", "rating": 4.9, "description": "La mejor panorámica de la ciudad.", "distance": "A 15 min" }
-  ]
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+// Objeto de respaldo garantizado
+const DEFAULT_FALLBACK = {
+  "Restaurantes": [{ name: "Lugar Recomendado", type: "Gastronomía", rating: 5, description: "Cerca de la propiedad.", distance: "Local" }],
+  "Farmacias": [{ name: "Farmacia Local", type: "Salud", rating: 5, description: "Servicio cercano.", distance: "Local" }],
+  "Compras": [], "Cultura": [], "Naturaleza": []
 };
 
-// geminiService.ts
-
-// ... mantén tu FALLBACK_RECOMMENDATIONS igual ...
-
 export const getNearbyPlaces = async (city: string, address: string) => {
-  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-  
-  // 🟢 CAMBIO: Probamos con el sufijo '-latest' que a veces resuelve el 404
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `Recomendaciones para ${city}, ${address} en JSON.` }] }]
-      })
+    const prompt = `Actúa como guía experto. Para la ubicación "${address}, ${city}", busca lugares REALES (radio 10km).
+    Genera exactamente 5 lugares para cada una de estas categorías: Restaurantes, Farmacias, Compras, Cultura, Naturaleza.
+
+    FORMATO DE RESPUESTA (Responde SOLO esto, sin texto extra, sin asteriscos):
+    Restaurantes || Nombre || Dirección || 4.5 || Descripción breve
+    Farmacias || Nombre || Dirección || 4.0 || Descripción breve
+    ... (continúa con todas las categorías)`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash", 
+      contents: prompt,
+      config: { tools: [{ googleMaps: {} } as any] },
     });
 
-    // Si recibimos 404, activamos el salvavidas manualmente
-    if (!response.ok) {
-      console.log("🚀 Activando Guía de Emergencia por error " + response.status);
-      return FALLBACK_RECOMMENDATIONS;
-    }
+    const text = response.text || "";
+    // Limpiamos asteriscos y símbolos que Gemini a veces añade por error
+    const cleanText = text.replace(/\*/g, ''); 
+    const lines = cleanText.split('\n').filter(l => l.includes('||'));
 
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    const jsonMatch = text?.match(/\{[\s\S]*\}/);
-    
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : FALLBACK_RECOMMENDATIONS;
+    const categorized: any = { 
+      "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] 
+    };
+
+    lines.forEach(line => {
+      const parts = line.split('||').map(s => s.trim());
+      if (parts.length >= 4) {
+        const [cat, name, addr, rate, desc] = parts;
+        // Normalizamos la categoría (primera letra mayúscula)
+        const key = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+        
+        if (categorized[key]) {
+          categorized[key].push({
+            name: name || "Lugar Recomendado",
+            type: cat,
+            rating: parseFloat(rate) || 4.5,
+            description: desc || addr || "Ubicado cerca de la propiedad.",
+            distance: "Cerca de ti"
+          });
+        }
+      }
+    });
+
+    // Verificamos si logramos llenar al menos una categoría
+    const hasData = Object.values(categorized).some((arr: any) => arr.length > 0);
+    return hasData ? categorized : DEFAULT_FALLBACK;
 
   } catch (error) {
-    return FALLBACK_RECOMMENDATIONS;
+    console.error("⚠️ Error en Gemini:", error);
+    return DEFAULT_FALLBACK;
   }
 };
