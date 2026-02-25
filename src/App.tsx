@@ -286,8 +286,9 @@ const App: React.FC = () => {
     
     // 3. LIMPIEZA DE MEMORIA (Vital para seguridad)
     // Borra todo lo que hayamos guardado en el navegador
-    localStorage.clear(); 
-    sessionStorage.clear();
+    localStorage.removeItem(STORAGE_KEYS.OWNERS);
+    localStorage.removeItem(STORAGE_KEYS.PROPERTIES);
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_CONTROL);
 
     // 4. Redirigimos a la pantalla de inicio (Selección: Dueño / Huésped)
     // Asegúrate de que 'AppView.LOGIN_CHOICE' sea el nombre de tu vista inicial

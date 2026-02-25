@@ -108,7 +108,7 @@ const GuestLogin: React.FC<GuestLoginProps> = ({
         <div className="absolute top-6 inset-x-6 flex justify-between items-center z-50">
           {/* BOTÓN SALIR: Estilo blanco/translúcido Luxury */}
           <button 
-            onClick={onExit}
+            onClick={() => window.close()}
             className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all shadow-lg active:scale-95"
           >
             {language === 'es' ? 'SALIR' : 'EXIT'}

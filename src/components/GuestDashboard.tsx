@@ -178,10 +178,8 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     }
   };
 
-  // ✅ CORREGIDO: hero image usa welcomeImageUrl antes del checkin y stayImageUrl después
-  const heroImage = access.checkinStatus
-    ? (property.stayImageUrl || property.welcomeImageUrl)
-    : property.welcomeImageUrl;
+  // Imagen hero: siempre usa welcomeImageUrl según configuración del admin
+  const heroImage = property.welcomeImageUrl;
 
   return (
     // ✅ CORREGIDO: <main> ahora está DENTRO del div raíz (antes quedaba afuera rompiendo el layout)
