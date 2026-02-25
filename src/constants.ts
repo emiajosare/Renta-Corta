@@ -1,4 +1,3 @@
-
 import type { AccessControl, PropertySettings, Owner } from './types';
 
 export const STORAGE_KEYS = {
@@ -19,20 +18,19 @@ export const MOCK_OWNERS: Owner[] = [
     token: 'ADMIN2024', 
     tokenPersonalized: false,
     avatarUrl: 'https://i.postimg.cc/nrfLXyq3/David.png',
-    
-    // 🟢 AÑADIMOS ESTO PARA ELIMINAR EL ERROR ROJO:
     email: 'admin@ejemplo.com', 
-    master_pin: 'ADMIN2024', // Lo dejamos igual al token para que no te bloquee
-    is_first_login: true     // 🚩 IMPORTANTE: Ponlo en TRUE para probar el flujo de seguridad
+    master_pin: 'ADMIN2024',
+    is_first_login: true,
+    role: 'owner' // ✅ CORREGIDO: campo requerido por el tipo Owner
   }
 ];
 
 export const MOCK_PROPERTIES: PropertySettings[] = [
   {
     id: PROPERTY_UUID,
-    ownerId: OWNER_UUID, // Vinculado al OWNER_UUID
+    ownerId: OWNER_UUID,
     buildingName: 'Escribe el nombre de tu Propiedad',
-    hostName: 'Nombre del Anfritrion',
+    hostName: 'Nombre del Anfitrion',
     city: 'Ciudad del Lugar',
     address: 'Direccion del Lugar',
     capacity: 'Maxima capacidad del lugar',
@@ -56,7 +54,7 @@ const checkOutDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000).toISOSt
 export const MOCK_ACCESS: AccessControl[] = [
   {
     id: ACCESS_UUID,
-    propertyId: PROPERTY_UUID, // Vinculado al PROPERTY_UUID
+    propertyId: PROPERTY_UUID,
     guestName: 'Sin Nombre',
     checkIn: checkInDate,
     checkOut: checkOutDate,

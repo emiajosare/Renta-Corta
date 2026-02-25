@@ -310,16 +310,6 @@ const displayDoorCode = timerExpired ? '****' : access.doorCode;
         {/* PESTAÑA: RESUMEN */}
         {activeTab === 'RESUMEN' && (
           <div className="space-y-6">
-           {/*{property.welcomeImageUrl && !access.checkinStatus && (
-              <div className="relative w-full h-48 rounded-[2rem] overflow-hidden shadow-lg animate-in fade-in zoom-in duration-700">
-                <img 
-                  src={property.welcomeImageUrl} 
-                  className="w-full h-full object-cover object-center" 
-                  alt="Welcome"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-              </div>
-            )}*/}
             <h2 className="text-xl font-black text-slate-400 uppercase tracking-widest text-center">{t.guest.welcomeDynamic.replace('{building}', property.buildingName)}</h2>
             {!access.checkinStatus ? (
                <button onClick={handleConfirmCheckin} className="w-full bg-[#0052FF] text-white py-12 rounded-[2.5rem] font-black text-2xl shadow-2xl transition-transform active:scale-[0.98] border border-blue-400/20">
