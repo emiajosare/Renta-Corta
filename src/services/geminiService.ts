@@ -12,7 +12,7 @@ const DEFAULT_FALLBACK = {
 
 export const getNearbyPlaces = async (city: string, address: string) => {
   try {
-    const prompt = `Actúa como guía experto. Para la ubicación "${address}, ${city}", busca lugares REALES (radio 10km).
+    const prompt = `Actúa como guía experto. Para la ubicación "${address}, ${city}", sugiere lugares REALES (radio 10km).
     Genera exactamente 5 lugares para cada una de estas categorías: Restaurantes, Farmacias, Compras, Cultura, Naturaleza.
 
     FORMATO DE RESPUESTA (Responde SOLO esto, sin texto extra, sin asteriscos):
@@ -20,19 +20,20 @@ export const getNearbyPlaces = async (city: string, address: string) => {
     Farmacias || Nombre || Dirección || 4.0 || Descripción breve
     ... (continúa con todas las categorías)`;
 
+    // ✅ CORREGIDO: eliminado tools: [{ googleMaps: {} }] que no es válido en el SDK
+    // La búsqueda de lugares se hace directamente vía prompt
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash", 
+      model: "gemini-2.0-flash",
       contents: prompt,
-      config: { tools: [{ googleMaps: {} } as any] },
     });
 
     const text = response.text || "";
-    // Limpiamos asteriscos y símbolos que Gemini a veces añade por error
-    const cleanText = text.replace(/\*/g, ''); 
+    // Limpiamos asteriscos y símbolos que Gemini a veces añade
+    const cleanText = text.replace(/\*/g, '');
     const lines = cleanText.split('\n').filter(l => l.includes('||'));
 
-    const categorized: any = { 
-      "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] 
+    const categorized: any = {
+      "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": []
     };
 
     lines.forEach(line => {
@@ -41,7 +42,7 @@ export const getNearbyPlaces = async (city: string, address: string) => {
         const [cat, name, addr, rate, desc] = parts;
         // Normalizamos la categoría (primera letra mayúscula)
         const key = cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
-        
+
         if (categorized[key]) {
           categorized[key].push({
             name: name || "Lugar Recomendado",
