@@ -31,8 +31,10 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     }
   };
 
-  // --- TIMER LOGIC ---
-  const TIMER_DURATION_SEC = 1800; // 30 minutos
+  // Timer: usa doorCodeDuration en días si está configurado, sino 30 minutos por defecto
+  const TIMER_DURATION_SEC = access.doorCodeDuration
+    ? access.doorCodeDuration * 24 * 60 * 60  // días a segundos
+    : 1800; // 30 minutos por defecto
 
   const calculateTimeLeft = () => {
     if (!access.checkinStatus || !access.issuedAt) return TIMER_DURATION_SEC;

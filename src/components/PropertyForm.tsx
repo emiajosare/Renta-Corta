@@ -41,7 +41,8 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     doorCode: '',
     checkinStatus: false,
     issuedAt: null,
-    registrationDate: null
+    registrationDate: null,
+    doorCodeDuration: undefined
   });
 
   // --- CARGA INICIAL DESDE NUBE (Prioridad Supabase) ---
@@ -155,7 +156,8 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
           booking_code: guestData.bookingCode.trim().toUpperCase(),
           door_code: guestData.doorCode,
           checkin_status: guestData.checkinStatus,
-          registration_date: guestData.registrationDate || new Date().toISOString()
+          registration_date: guestData.registrationDate || new Date().toISOString(),
+          door_code_duration: guestData.doorCodeDuration || null
         };
 
         const { error: guestError } = await supabase
@@ -219,16 +221,21 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
   // --- LÓGICA DE MEMO Y HELPERS ---
   const activeGuests = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); 
     return allAccessRecords
       .filter(a => {
         if (!a.guestName || a.guestName.trim() === '' || a.guestName.toLowerCase() === 'sin nombre') return false;
-        const checkOutDate = a.checkOut ? new Date(`${a.checkOut}T23:59:59`) : new Date(0);
-        return checkOutDate >= today;
+        return true;
       })
       .sort((a, b) => new Date(a.checkIn!).getTime() - new Date(b.checkIn!).getTime());
   }, [allAccessRecords]);
+
+  // Determina si una reserva venció (1 día después del checkout)
+  const isExpired = (guest: AccessControl) => {
+    if (!guest.checkOut) return false;
+    const checkOutDate = new Date(`${guest.checkOut}T23:59:59`);
+    const oneDayAfter = new Date(checkOutDate.getTime() + 24 * 60 * 60 * 1000);
+    return new Date() >= oneDayAfter;
+  };
 
   const formatGuestLabel = (guest: AccessControl) => {
     const name = guest.guestName.split(' ');
@@ -237,9 +244,30 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
   const getGuestStatusStyle = (guest: AccessControl, isSelected: boolean) => {
     const baseClass = "flex-shrink-0 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 active:scale-95 whitespace-nowrap";
-    return isSelected 
+    if (isExpired(guest)) {
+      return isSelected
+        ? `${baseClass} border-rose-400 text-rose-600 bg-rose-100`
+        : `${baseClass} border-rose-200 text-rose-400 bg-rose-50 hover:border-rose-400`;
+    }
+    return isSelected
       ? `${baseClass} border-[#0052FF] text-[#0052FF] bg-blue-50`
       : `${baseClass} border-slate-50 text-slate-400 bg-white hover:border-slate-200`;
+  };
+
+  // --- ELIMINAR HUÉSPED VENCIDO ---
+  const handleDeleteGuest = async (guestId: string, guestName: string) => {
+    const confirmed = window.confirm(`¿Eliminar la reserva de ${guestName}?`);
+    if (!confirmed) return;
+    try {
+      const { error } = await supabase.from('access_control').delete().eq('id', guestId);
+      if (error) throw error;
+      setAllAccessRecords(prev => prev.filter(a => a.id !== guestId));
+      if (accessData.id === guestId) {
+        setAccessData({ id: `ac_${Date.now()}`, propertyId: property.id, guestName: '', checkIn: '', checkOut: '', bookingCode: '', doorCode: '', checkinStatus: false, issuedAt: null, registrationDate: null, doorCodeDuration: undefined });
+      }
+    } catch (err) {
+      alert('No se pudo eliminar la reserva.');
+    }
   };
 
   // --- MANEJO DE FORMULARIO ---
@@ -514,17 +542,32 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
           {activeTab === 'RESERVAS' && (
             <div className="space-y-10 animate-in fade-in duration-500">
               <div className="flex items-center space-x-4 overflow-x-auto pb-4 no-scrollbar">
-                <button 
-                  type="button" 
-                  onClick={() => setAccessData({ id: `ac_${Date.now()}`, propertyId: property.id, guestName: '', checkIn: '', checkOut: '', bookingCode: '', doorCode: '', checkinStatus: false, issuedAt: null, registrationDate: null })}
-                  className="px-6 py-3 bg-[#0052FF] text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg"
+                <button
+                  type="button"
+                  onClick={() => setAccessData({ id: `ac_${Date.now()}`, propertyId: property.id, guestName: '', checkIn: '', checkOut: '', bookingCode: '', doorCode: '', checkinStatus: false, issuedAt: null, registrationDate: null, doorCodeDuration: undefined })}
+                  className="px-6 py-3 bg-[#0052FF] text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex-shrink-0"
                 >
                   + {t.owner.form.newGuest}
                 </button>
                 {activeGuests.map(g => (
-                  <button key={g.id} type="button" onClick={() => setAccessData(g)} className={getGuestStatusStyle(g, accessData.id === g.id)}>
-                    {formatGuestLabel(g)}
-                  </button>
+                  <div key={g.id} className="flex items-center gap-1 flex-shrink-0">
+                    <button type="button" onClick={() => setAccessData(g)} className={getGuestStatusStyle(g, accessData.id === g.id)}>
+                      {formatGuestLabel(g)}
+                      {isExpired(g) && <span className="ml-2">🔴</span>}
+                    </button>
+                    {isExpired(g) && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteGuest(g.id, g.guestName)}
+                        className="w-8 h-8 flex items-center justify-center text-rose-300 hover:text-rose-600 transition-colors"
+                        title="Eliminar reserva"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
 
@@ -534,48 +577,61 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                   <input name="guestName" value={accessData.guestName} onChange={handleAccessChange} className={inputClass} />
                 </div>
 
-                {/* FECHA DE ENTRADA */}
                 <div className="relative">
                   <label className={labelClass}>{t.owner.form.checkIn}</label>
-                  <input 
-                    type="date" 
-                    name="checkIn" 
-                    value={accessData.checkIn} 
-                    onChange={handleAccessChange} 
-                    className={`${inputClass} ${dateErrors.checkIn ? 'border-rose-500 bg-rose-50' : ''}`} 
-                  />
-                  {dateErrors.checkIn && (
-                    <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in slide-in-from-top-1">
-                      {dateErrors.checkIn}
-                    </p>
-                  )}
+                  <input type="date" name="checkIn" value={accessData.checkIn} onChange={handleAccessChange} className={`${inputClass} ${dateErrors.checkIn ? 'border-rose-500 bg-rose-50' : ''}`} />
+                  {dateErrors.checkIn && <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in slide-in-from-top-1">{dateErrors.checkIn}</p>}
                 </div>
 
-                {/* FECHA DE SALIDA */}
                 <div className="relative">
                   <label className={labelClass}>{t.owner.form.checkOut}</label>
-                  <input 
-                    type="date" 
-                    name="checkOut" 
-                    value={accessData.checkOut} 
-                    onChange={handleAccessChange} 
-                    className={`${inputClass} ${dateErrors.checkOut ? 'border-rose-500 bg-rose-50' : ''}`} 
-                  />
-                  {dateErrors.checkOut && (
-                    <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in slide-in-from-top-1">
-                      {dateErrors.checkOut}
-                    </p>
-                  )}
+                  <input type="date" name="checkOut" value={accessData.checkOut} onChange={handleAccessChange} className={`${inputClass} ${dateErrors.checkOut ? 'border-rose-500 bg-rose-50' : ''}`} />
+                  {dateErrors.checkOut && <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in slide-in-from-top-1">{dateErrors.checkOut}</p>}
                 </div>
 
                 <div>
                   <label className={labelClass}>{t.owner.form.loginCode}</label>
                   <input name="bookingCode" value={accessData.bookingCode} onChange={handleAccessChange} className={inputClass + " uppercase"} />
                 </div>
-                
+
                 <div>
                   <label className={labelClass}>{t.owner.form.doorCode}</label>
                   <input name="doorCode" value={accessData.doorCode} onChange={handleAccessChange} className={inputClass} />
+                </div>
+
+                {/* ✅ NUEVO: DURACIÓN DEL CÓDIGO PUERTA */}
+                <div className="md:col-span-2 bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                  <label className={labelClass}>⏱️ Duración del Código Puerta (días)</label>
+                  <div className="flex items-center gap-4 mt-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={
+                        accessData.checkIn && accessData.checkOut
+                          ? Math.max(1, Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
+                          : 365
+                      }
+                      value={accessData.doorCodeDuration || ''}
+                      onChange={(e) => setAccessData(prev => ({
+                        ...prev,
+                        doorCodeDuration: e.target.value ? parseInt(e.target.value) : undefined
+                      }))}
+                      placeholder="Días"
+                      className={`${inputClass} max-w-[140px] text-center font-mono`}
+                    />
+                    <div className="flex-1">
+                      <p className="text-[11px] font-bold text-slate-500">
+                        {accessData.doorCodeDuration
+                          ? `El código expira después de ${accessData.doorCodeDuration} día${accessData.doorCodeDuration > 1 ? 's' : ''} desde el check-in`
+                          : 'Sin configurar → expira a los 30 minutos del check-in'}
+                      </p>
+                      {accessData.checkIn && accessData.checkOut && (
+                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">
+                          Máximo: {Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24))} días (hasta el checkout)
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 

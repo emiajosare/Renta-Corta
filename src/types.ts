@@ -1,4 +1,3 @@
-
 // 1. Corregido el export y mantenemos todos los tipos
 export type Language = 'es' | 'en';
 export type ImageSize = '1K' | '2K' | '4K';
@@ -9,13 +8,14 @@ export interface Owner {
   token: string;
   tokenPersonalized: boolean;
   avatarUrl?: string; // Mantenido: perfil
-  // 🟢 NUEVOS CAMPOS (Sincronizados con tu imagen de Supabase)
+  // Campos sincronizados con Supabase
   email: string;             
   master_pin: string;        
   is_first_login: boolean;
-  role: 'owner' | 'superadmin'; // Nuevo campo
+  role: 'owner' | 'superadmin';
 }
 
+// ✅ CORREGIDO: Interfaz unificada (era duplicada, causaba error de compilación)
 export interface PropertySettings {
   id: string;
   ownerId: string;
@@ -30,11 +30,13 @@ export interface PropertySettings {
   wifiPass: string;
   rules: string;
   guides: string;
-  checkoutInstructions: string; // Mantenido: dinámico
+  checkoutInstructions: string;
   whatsappContact: string;
-  welcomeImageUrl?: string; // Mantenido: fondo login
-  stayImageUrl?: string;    // Mantenido: imagen principal
-  aiRecommendations?: Record<string, any[]>; // Mantenido: CACHÉ DE IA
+  welcomeImageUrl?: string;
+  stayImageUrl?: string;
+  aiRecommendations?: Record<string, any[]>;
+  location_lat?: number;  // ✅ Fusionado aquí (antes estaba en interfaz duplicada)
+  location_lng?: number;  // ✅ Fusionado aquí (antes estaba en interfaz duplicada)
 }
 
 export interface AccessControl {
@@ -47,17 +49,18 @@ export interface AccessControl {
   doorCode: string;
   checkinStatus: boolean;
   issuedAt: string | null;
-  checkInTimestamp?: number; // Mantenido: PERSISTENCIA TEMPORIZADOR
-  registrationDate?: string | null; // Mantenido: AUDITORÍA INMUTABLE
+  checkInTimestamp?: number;
+  registrationDate?: string | null;
+  doorCodeDuration?: number; // Duración en días (si es null/undefined usa 30 min por defecto)
 }
 
-// Mantenemos la estructura de AppView que funciona con Vite
+// AppView - fuente única de verdad (el archivo AppView.ts separado ya no es necesario)
 export const AppView = {
   LOGIN_CHOICE: 'LOGIN_CHOICE',
   OWNER_LOGIN: 'OWNER_LOGIN',
   PROPERTY_LIST: 'PROPERTY_LIST',
   PROPERTY_DETAIL: 'PROPERTY_DETAIL',
-  OWNER_DASHBOARD: 'OWNER_DASHBOARD', // 🟢 AÑADE ESTA LÍNEA
+  OWNER_DASHBOARD: 'OWNER_DASHBOARD',
   GUEST_LOGIN: 'GUEST_LOGIN',
   GUEST_DASHBOARD: 'GUEST_DASHBOARD',
   SUPER_ADMIN_PANEL: 'SUPER_ADMIN_PANEL',
@@ -65,12 +68,5 @@ export const AppView = {
 } as const;
 
 export type AppView = typeof AppView[keyof typeof AppView];
-// Añade 'WIFI' a la unión de tipos para que sea una opción legal
-export type GuestTab = 'RESUMEN' | 'GUIA' | 'REGLAS' | 'CHECKOUT' | 'WIFI' | 'MAPS';
 
-// Dentro de src/types.ts
-export interface PropertySettings {
-  // ... todos tus campos actuales ...
-  location_lat?: number; // Añade esta línea
-  location_lng?: number; // Añade esta línea
-}
+export type GuestTab = 'RESUMEN' | 'GUIA' | 'REGLAS' | 'CHECKOUT' | 'WIFI' | 'MAPS';

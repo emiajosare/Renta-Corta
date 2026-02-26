@@ -86,7 +86,8 @@ const GuestLogin: React.FC<GuestLoginProps> = ({
         doorCode: guestData.door_code,
         checkinStatus: guestData.checkin_status,
         registrationDate: guestData.registration_date,
-        issuedAt: guestData.issued_at
+        issuedAt: guestData.issued_at,
+        doorCodeDuration: guestData.door_code_duration || undefined // ✅ AGREGADO
       };
 
       onLoginSuccess(formattedProperty, formattedGuest);

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { type Owner, type PropertySettings, type AccessControl, type Language } from './types';
 import { AppView } from "./types";
@@ -219,7 +218,8 @@ const App: React.FC = () => {
       doorCode: data.door_code,
       checkinStatus: data.checkin_status,
       registrationDate: data.registration_date,
-      issuedAt: data.issued_at ? new Date(data.issued_at).getTime().toString() : Date.now().toString()// Esta es la clave para el temporizador
+      issuedAt: data.issued_at ? new Date(data.issued_at).getTime().toString() : Date.now().toString(),
+      doorCodeDuration: data.door_code_duration || undefined // ✅ AGREGADO
     };
 
     // 4. Actualizamos el estado actual: esto "ilumina" los botones de la interfaz al instante
@@ -286,9 +286,8 @@ const App: React.FC = () => {
     
     // 3. LIMPIEZA DE MEMORIA (Vital para seguridad)
     // Borra todo lo que hayamos guardado en el navegador
-    localStorage.removeItem(STORAGE_KEYS.OWNERS);
-    localStorage.removeItem(STORAGE_KEYS.PROPERTIES);
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_CONTROL);
+    localStorage.clear(); 
+    sessionStorage.clear();
 
     // 4. Redirigimos a la pantalla de inicio (Selección: Dueño / Huésped)
     // Asegúrate de que 'AppView.LOGIN_CHOICE' sea el nombre de tu vista inicial
