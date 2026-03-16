@@ -349,7 +349,7 @@ const App: React.FC = () => {
         <nav className="bg-white border-b border-slate-100 px-4 sm:px-8 py-4 sm:py-6 flex justify-between items-center sticky top-0 z-[100] shadow-sm animate-in fade-in duration-500">
           <div className="flex flex-col">
             <span className="text-[#0052FF] text-[8px] sm:text-[10px] font-black tracking-[0.35em] mb-1">
-              @erasoDigital
+              RentaCortaElit
             </span>
             <h1 
               key={selectedProperty?.id || 'default'} 
@@ -396,7 +396,7 @@ const App: React.FC = () => {
               {properties[0]?.buildingName?.charAt(0) || 'S'}
             </div>
             <span className="font-black text-lg sm:text-xl tracking-tighter uppercase text-slate-900 truncate max-w-[200px]">
-              {properties[0]?.buildingName || "ShortStay"}
+              {properties[0]?.buildingName || "RentaCortaElit"}
             </span>
           </div>
         </nav>

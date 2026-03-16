@@ -166,7 +166,7 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
             </div>
           ))}
         </div>
-        <div className="mt-8 pt-6 border-t border-white/10 text-center"><p className="text-[9px] font-black tracking-[0.2em] text-white/30">@erasoDigital</p></div>
+        <div className="mt-8 pt-6 border-t border-white/10 text-center"><p className="text-[9px] font-black tracking-[0.2em] text-white/30">RentaCortaElit</p></div>
       </div>
     </div>
   );
@@ -187,7 +187,7 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     // ✅ CORREGIDO: <main> ahora está DENTRO del div raíz (antes quedaba afuera rompiendo el layout)
     <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans overflow-x-hidden selection:bg-[#0052FF] selection:text-white">
       <header className="px-6 pt-8 pb-4 flex justify-between items-end animate-in fade-in slide-in-from-top-4 duration-700">
-        <div><p className="text-[#0052FF] text-[10px] font-black tracking-[0.3em] mb-1">@erasoDigital</p><h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter truncate max-w-[200px] sm:max-w-md">{t.guest.hello}, {access.guestName}</h1></div>
+        <div><p className="text-[#0052FF] text-[10px] font-black tracking-[0.3em] mb-1">RentaCortaElit</p><h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter truncate max-w-[200px] sm:max-w-md">{t.guest.hello}, {access.guestName}</h1></div>
         <button onClick={onLogout} className="bg-white text-slate-900 px-5 py-2.5 rounded-full border border-slate-200 shadow-sm text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors active:scale-95">{t.common.logout}</button>
       </header>
 
