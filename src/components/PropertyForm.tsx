@@ -13,11 +13,12 @@ interface PropertyFormProps {
   onBack: () => void;
   language: Language;
   onToggleLanguage: () => void;
+  isFounder?: boolean;
 }
 
 type Tab = 'PROPIEDAD' | 'MULTIMEDIA' | 'RESERVAS' | 'GUIAS';
 
-const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, language, onToggleLanguage }) => {
+const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, language, onToggleLanguage, isFounder }) => {
   const t = translations[language];
   const [activeTab, setActiveTab] = useState<Tab>('PROPIEDAD');
   const [formData, setFormData] = useState<PropertySettings>(property);
@@ -636,8 +637,19 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
               </div>
 
               <div className="pt-8 border-t border-slate-100 flex justify-between items-center">
-                <button type="button" onClick={handleExportHistory} className="text-[10px] font-black text-[#0052FF] uppercase tracking-widest border-b-2 border-blue-200 hover:border-[#0052FF] transition-all">
-                  {t.owner.form.downloadCsv}
+                {/* 🟢 BOTÓN INTELIGENTE: Visible pero bloqueado para Fundadores */}
+                <button 
+                  type="button" 
+                  onClick={isFounder ? undefined : handleExportHistory} 
+                  disabled={isFounder}
+                  title={isFounder ? "Función Basico: Actualiza tu plan para descargar historiales en CSV." : ""}
+                  className={`text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${
+                    isFounder 
+                      ? 'text-slate-400 border-slate-200 opacity-50 cursor-not-allowed' 
+                      : 'text-[#0052FF] border-blue-200 hover:border-[#0052FF]'
+                  }`}
+                >
+                  {t.owner.form.downloadCsv} {isFounder && <span className="ml-1 text-[8px] bg-slate-200 px-1 py-0.5 rounded text-slate-500">BASICO</span>}
                 </button>
                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                   ID: {accessData.id}

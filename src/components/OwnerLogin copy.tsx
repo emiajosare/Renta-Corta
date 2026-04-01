@@ -1,60 +1,37 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
 
 interface OwnerLoginProps {
-  onLoginSuccess: (ownerData: any) => void;
+  // 🟢 Ahora pasamos email y pin
+  onLogin: (email: string, pin: string) => void; 
   onBack: () => void;
+  error?: string;
+  t: any;
 }
 
-export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const OwnerLogin: React.FC<OwnerLoginProps> = ({ onLogin, onBack, error, t }) => {
+  const [email, setEmail] = useState(''); // 🟢 Nuevo estado
+  const [pin, setPin] = useState('');     // 🟢 Renombramos token a pin
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Consultamos a Supabase si las credenciales son correctas
-      const { data, error: authError } = await supabase
-        .from('owners')
-        .select('*')
-        .eq('email', email.toLowerCase().trim())
-        .eq('master_pin', password)
-        .maybeSingle();
-
-      if (authError || !data) {
-        throw new Error('Credenciales inválidas o cuenta no encontrada.');
-      }
-
-      // Si es exitoso, enviamos los datos a App.tsx
-      onLoginSuccess(data);
-
-    } catch (err: any) {
-      setError(err.message || 'Error de conexión');
-    } finally {
-      setIsLoading(false);
-    }
+    onLogin(email, pin); // 🟢 Enviamos ambos
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F8FAFC] p-4 relative z-50">
-      
+    <div className="flex flex-col items-center justify-center min-h-[70vh]">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="mb-8 text-center">
-          <div className="w-20 h-20 bg-[#0052FF] rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-100">
+          <div className="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-100">
             <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
           </div>
-          <h2 className="text-3xl font-black text-[#212121] tracking-tight">Acceso Anfitrión</h2>
-          <p className="text-[#64748B] mt-3 font-medium">Ingrese a su panel de control.</p>
+          <h2 className="text-3xl font-black text-[#212121] tracking-tight">{t.auth.ownerAccess}</h2>
+          <p className="text-[#64748B] mt-3 font-medium">{t.auth.ownerSubtitle}</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* 🟢 NUEVO CAMPO: EMAIL */}
           <div>
             <label className="block text-[10px] font-black uppercase text-[#64748B] tracking-[0.15em] mb-2 ml-1">Email de Administrador</label>
             <input
@@ -67,12 +44,13 @@ export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) 
             />
           </div>
 
+          {/* CAMPO: PIN / TOKEN */}
           <div>
-            <label className="block text-[10px] font-black uppercase text-[#64748B] tracking-[0.15em] mb-2 ml-1">Contraseña / PIN</label>
+            <label className="block text-[10px] font-black uppercase text-[#64748B] tracking-[0.15em] mb-2 ml-1">PIN o Token de Invitación</label>
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
               placeholder="••••••"
               className="w-full px-6 py-4 rounded-2xl border-[1.5px] border-[#CBD5E1] bg-[#F8FAFC] text-[#212121] focus:bg-white focus:border-[#0052FF] outline-none transition-all duration-300 font-mono"
               required
@@ -87,10 +65,9 @@ export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) 
           
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#0052FF] hover:bg-blue-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-100 active:scale-[0.98] disabled:opacity-50"
+            className="w-full bg-[#0052FF] hover:bg-blue-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-blue-100 active:scale-[0.98]"
           >
-            {isLoading ? 'VALIDANDO...' : 'VALIDAR ACCESO'}
+            {t.auth.validate}
           </button>
         </form>
         
@@ -99,10 +76,16 @@ export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) 
             onClick={onBack}
             className="text-slate-400 hover:text-slate-600 text-[10px] font-black uppercase tracking-[0.2em] transition-colors py-2 px-4"
           >
-            REGRESAR
+            {t.common.back}
           </button>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-slate-50 text-center">
+          <p className="text-[9px] font-black text-slate-300 tracking-[0.2em] uppercase">Suite de Gestión v1.3</p>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default OwnerLogin;

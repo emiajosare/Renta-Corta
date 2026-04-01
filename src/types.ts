@@ -13,6 +13,7 @@ export interface Owner {
   master_pin: string;        
   is_first_login: boolean;
   role: 'owner' | 'superadmin';
+  is_founder?: boolean;
 }
 
 // ✅ CORREGIDO: Interfaz unificada (era duplicada, causaba error de compilación)
@@ -57,6 +58,8 @@ export interface AccessControl {
 // AppView - fuente única de verdad (el archivo AppView.ts separado ya no es necesario)
 export const AppView = {
   LOGIN_CHOICE: 'LOGIN_CHOICE',
+  LANDING_PAGE: 'LANDING_PAGE',       // 🟢 NUEVO
+  HOST_ONBOARDING: 'HOST_ONBOARDING', // 🟢 NUEVO
   OWNER_LOGIN: 'OWNER_LOGIN',
   PROPERTY_LIST: 'PROPERTY_LIST',
   PROPERTY_DETAIL: 'PROPERTY_DETAIL',
