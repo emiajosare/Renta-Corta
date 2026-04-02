@@ -225,7 +225,7 @@ const App: React.FC = () => {
         <nav className="bg-white border-b border-slate-100 px-4 sm:px-8 py-4 sm:py-6 flex justify-between items-center sticky top-0 z-[100] shadow-sm animate-in fade-in duration-500">
           <div className="flex flex-col">
             <span className="text-[#0052FF] text-[8px] sm:text-[10px] font-black tracking-[0.35em] mb-1">
-              RentaCortaElit
+              HostFlow
             </span>
             <h1 key={selectedProperty?.id || 'default'} className="text-xl sm:text-3xl font-black text-[#212121] tracking-tighter animate-in fade-in slide-in-from-left-2 duration-700 truncate max-w-[200px] sm:max-w-none">
               {selectedProperty ? selectedProperty.buildingName : t.owner.dashboardTitle}
@@ -244,7 +244,7 @@ const App: React.FC = () => {
         <nav className="bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
           <div className="flex items-center space-x-2">
             <span className="font-black text-lg sm:text-xl tracking-tighter uppercase text-slate-900 truncate">
-              RentaCortaElit
+              HostFlow
             </span>
           </div>
         </nav>
