@@ -339,7 +339,7 @@ const App: React.FC = () => {
       })()
     )}
 
-        {view === AppView.PROPERTY_DETAIL && selectedProperty && (
+        {view === AppView.PROPERTY_DETAIL && selectedProperty && currentOwner && (
             <PropertyForm 
               property={selectedProperty} 
               onSave={handleSaveProperty} 
