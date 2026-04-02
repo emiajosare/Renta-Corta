@@ -183,12 +183,26 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
   // Imagen hero: siempre usa welcomeImageUrl según configuración del admin
   const heroImage = property.welcomeImageUrl;
 
+  // 🟢 NUEVA LÓGICA DE SALIDA ABSOLUTA
+  const handleExitApp = () => {
+    // 1. Limpiamos la sesión y memorias (viene de App.tsx)
+    onLogout(); 
+    
+    // 2. Intentamos cerrar la pestaña físicamente
+    window.close();
+    
+    // 3. Fallback: Si el navegador bloquea el cierre, lo mandamos al buscador
+    setTimeout(() => {
+      window.location.href = "https://www.google.com";
+    }, 150);
+  };
+
   return (
     // ✅ CORREGIDO: <main> ahora está DENTRO del div raíz (antes quedaba afuera rompiendo el layout)
     <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans overflow-x-hidden selection:bg-[#0052FF] selection:text-white">
       <header className="px-6 pt-8 pb-4 flex justify-between items-end animate-in fade-in slide-in-from-top-4 duration-700">
         <div><p className="text-[#0052FF] text-[10px] font-black tracking-[0.3em] mb-1">HostFlow</p><h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tighter truncate max-w-[200px] sm:max-w-md">{t.guest.hello}, {access.guestName}</h1></div>
-        <button onClick={onLogout} className="bg-white text-slate-900 px-5 py-2.5 rounded-full border border-slate-200 shadow-sm text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors active:scale-95">{t.common.logout}</button>
+        <button onClick={handleExitApp} className="bg-white text-slate-900 px-5 py-2.5 rounded-full border border-slate-200 shadow-sm text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors active:scale-95">{t.common.logout}</button>
       </header>
 
       {/* HERO SECTION */}
