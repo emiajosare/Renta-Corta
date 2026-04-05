@@ -331,6 +331,9 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         const aiRecs = await getNearbyPlaces(currentPropData.city, currentPropData.address);
         if (aiRecs) {
           currentPropData.aiRecommendations = aiRecs;
+          currentPropData.nearbyPlaces = aiRecs; // 👈 AÑADE ESTA LÍNEA AQUÍ
+  
+          console.log("✅ Recomendaciones inyectadas en el objeto de la propiedad");
         }
       }
 

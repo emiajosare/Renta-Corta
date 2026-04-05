@@ -36,6 +36,7 @@ export interface PropertySettings {
   welcomeImageUrl?: string;
   stayImageUrl?: string;
   aiRecommendations?: Record<string, any[]>;
+  nearbyPlaces?: any;
   location_lat?: number;  // ✅ Fusionado aquí (antes estaba en interfaz duplicada)
   location_lng?: number;  // ✅ Fusionado aquí (antes estaba en interfaz duplicada)
 }
