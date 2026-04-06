@@ -1,57 +1,41 @@
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY?.trim();
+import { supabase } from '../lib/supabaseClient';
 
 export const getNearbyPlaces = async (city: string, address: string) => {
-  // Usamos los alias exactos de tu lista de modelos disponibles
-  const modelsToTry = ["gemini-flash-latest", "gemini-pro-latest", "gemini-2.0-flash"];
-  
-  const prompt = `Actúa como guía local experto para HostFlow. 
-  Para la ubicación "${address}, ${city}", sugiere lugares REALES.
-  Genera 5 lugares por categoría: Restaurantes, Farmacias, Compras, Cultura, Naturaleza.
-  FORMATO: Categoría || Nombre || Dirección || 4.5 || Descripción breve`;
+  try {
+    console.log("🛡️ Solicitando guía de lujo a través de HostFlow Secure...");
 
-  for (const modelName of modelsToTry) {
-    try {
-      console.log(`🤖 Intentando con modelo: ${modelName}...`);
-      
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
+    // Llamamos a tu nueva Edge Function
+    const { data, error } = await supabase.functions.invoke('get-recommendations', {
+      body: { city, address }
+    });
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      });
+    if (error) throw error;
 
-      // Si el modelo no existe (404) o está saturado (429), probamos el siguiente
-      if (response.status === 404 || response.status === 429) {
-        console.warn(`⚠️ Modelo ${modelName} no disponible (${response.status}). Reintentando...`);
-        continue; 
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(JSON.stringify(errorData));
-      }
-
-      const data = await response.json();
-      const text = data.candidates[0].content.parts[0].text;
-      
-      console.log(`✅ ¡Éxito con ${modelName}!`);
-      return parseResponse(text);
-
-    } catch (error: any) {
-      console.error(`❌ Error en ${modelName}:`, error.message);
+    // Extraemos el texto de la respuesta de Gemini que viene de la función
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      console.warn("⚠️ La IA no devolvió texto válido.");
+      return getDefaultCategories();
     }
-  }
 
-  return { "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] };
+    console.log("✅ Guía de lujo recibida desde el servidor.");
+    return parseResponse(text);
+
+  } catch (error: any) {
+    console.error("⚠️ Error en el motor seguro de HostFlow:", error.message);
+    return getDefaultCategories();
+  }
 };
 
+// Función para procesar el formato: Categoría || Nombre || Dirección || Rating || Descripción
 function parseResponse(text: string) {
   const cleanText = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').replace(/\*/g, '').trim();
   const lines = cleanText.split('\n').filter(l => l.includes('||'));
-  const categorized: any = { "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] };
+  
+  const categorized: any = { 
+    "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] 
+  };
 
   lines.forEach(line => {
     const parts = line.split('||').map(s => s.trim());
@@ -64,10 +48,14 @@ function parseResponse(text: string) {
           type: key,
           rating: parseFloat(rate) || 4.5,
           description: desc || addr,
-          distance: "Cerca"
+          distance: "Cerca de ti"
         });
       }
     }
   });
   return categorized;
+}
+
+function getDefaultCategories() {
+  return { "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] };
 }
