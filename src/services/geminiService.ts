@@ -2,28 +2,24 @@ import { supabase } from '../lib/supabaseClient';
 
 export const getNearbyPlaces = async (city: string, address: string) => {
   try {
-    console.log("🛡️ Solicitando guía de lujo a través de HostFlow Secure...");
-
-    // Llamamos a tu nueva Edge Function
+    // 1. Llamada limpia (la llave está oculta en el servidor de Supabase)
     const { data, error } = await supabase.functions.invoke('get-recommendations', {
       body: { city, address }
     });
 
-    if (error) throw error;
+    if (error) throw new Error("Error en el servidor de recomendaciones");
 
-    // Extraemos el texto de la respuesta de Gemini que viene de la función
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      console.warn("⚠️ La IA no devolvió texto válido.");
+    // 2. Si recibimos un error de Google dentro del objeto data, no lo imprimas todo
+    if (data.error) {
+      console.error("❌ Error de Google detectado. Revisa la cuota en el panel de control.");
       return getDefaultCategories();
     }
 
-    console.log("✅ Guía de lujo recibida desde el servidor.");
-    return parseResponse(text);
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    return text ? parseResponse(text) : getDefaultCategories();
 
   } catch (error: any) {
-    console.error("⚠️ Error en el motor seguro de HostFlow:", error.message);
+    console.error("⚠️ Error silencioso en el motor de HostFlow");
     return getDefaultCategories();
   }
 };
