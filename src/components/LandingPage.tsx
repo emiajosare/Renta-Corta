@@ -66,7 +66,8 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClo
           master_pin: password, // Usamos la contraseña como su PIN maestro
           token: newToken,
           is_first_login: true,
-          role: 'owner'
+          role: 'owner',
+          is_founder: true
         }]).select().single();
 
         if (error) throw error;

@@ -46,6 +46,16 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     doorCodeDuration: undefined
   });
 
+  // --- LÓGICA DEL LINK DE INVITACIÓN ---
+  // Usamos formData.id porque es el que se actualiza con el UUID real de Supabase al guardar
+  const shortId = formData.id?.split('-')[0] || 'access'; // Toma solo el primer bloque del UUID
+  const invitationLink = `${window.location.origin}/stay/${shortId}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(invitationLink);
+    alert(language === 'es' ? "¡Enlace copiado! Envíalo a tu huésped." : "Link copied! Send it to your guest.");
+  };
+
   // --- CARGA INICIAL DESDE NUBE (Prioridad Supabase) ---
   useEffect(() => {
    const loadInitialData = async () => {
@@ -603,9 +613,12 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                   <input name="doorCode" value={accessData.doorCode} onChange={handleAccessChange} className={inputClass} />
                 </div>
 
-                {/* ✅ NUEVO: DURACIÓN DEL CÓDIGO PUERTA */}
-                <div className="md:col-span-2 bg-slate-50 rounded-3xl p-6 border border-slate-100">
-                  <label className={labelClass}>⏱️ Duración del Código Puerta (días)</label>
+                {/* 🟢 SECCIÓN: DURACIÓN + LINK DE INVITACIÓN (GRID 2 COLUMNAS) */}
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* COLUMNA IZQUIERDA: DURACIÓN DEL CÓDIGO */}
+                  <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                    <label className={labelClass}>⏱️ Duración del Código Puerta (días)</label>
                   <div className="flex items-center gap-4 mt-2">
                     <input
                       type="number"
@@ -635,6 +648,31 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                         </p>
                       )}
                     </div>
+                  </div>
+                  </div>
+
+                  {/* COLUMNA DERECHA: LINK DE INVITACIÓN (DISEÑO REFINADO) */}
+                  <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-center">
+                    <label className="block text-[10px] font-black uppercase text-[#C9A84C] tracking-[0.2em] mb-3 ml-1">
+                      Enlace de Invitación Deluxe
+                    </label>
+                    <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                      <div className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600 truncate">
+                        <span className="text-[#0052FF]/50">hostflow.app/</span>stay/{shortId}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCopyLink}
+                        className="p-3 bg-black text-[#C9A84C] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                        </svg>
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-slate-400 mt-3 ml-1 font-medium">
+                      ✨ Este link identifica automáticamente la propiedad para tu huésped.
+                    </p>
                   </div>
                 </div>
               </div>

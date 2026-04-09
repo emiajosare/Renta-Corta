@@ -45,6 +45,52 @@ const App: React.FC = () => {
     if (savedLang) setLanguage(savedLang);
   }, []);
 
+  // 🟢 NUEVO: DETECTOR DE LINKS DE INVITACIÓN (/stay/[id])
+useEffect(() => {
+  const path = window.location.pathname;
+  if (path.startsWith('/stay/')) {
+    const propertyShortId = path.split('/')[2];
+    if (propertyShortId) {
+      handleAutoLoginGuest(propertyShortId);
+    }
+  }
+}, []);
+
+  // Función auxiliar para procesar el link del huésped
+  const handleAutoLoginGuest = async (shortId: string) => {
+    try {
+      // 1. Buscamos la propiedad que coincida con el ID (o los primeros caracteres del UUID)
+      const { data: propertyData, error: propError } = await supabase
+        .from('properties')
+        .select('*, owners(avatar_url)')
+        .or(`id.ilike.${shortId}%,id.eq.${shortId}`) // Busca coincidencia exacta o por inicio de UUID
+        .single();
+
+      if (propError || !propertyData) throw new Error("Propiedad no encontrada");
+
+      // 2. En este punto, como el link es genérico para la propiedad, 
+      // enviamos al huésped a la pantalla de LOGIN para que ponga su código de reserva.
+      setSelectedProperty({
+        ...propertyData,
+        ownerId: propertyData.owner_id,
+        buildingName: propertyData.building_name,
+        hostName: propertyData.host_name,
+        wifiSSID: propertyData.wifi_ssid,
+        wifiPass: propertyData.wifi_pass,
+        checkoutInstructions: propertyData.checkout_instructions,
+        welcomeImageUrl: propertyData.welcome_image_url,
+        stayImageUrl: propertyData.stay_image_url,
+        whatsappContact: propertyData.whatsapp_contact,
+        aiRecommendations: propertyData.ai_recommendations
+      });
+      
+      setView(AppView.GUEST_LOGIN); // Lo mandamos a que valide su código
+    } catch (err) {
+      console.error("Error al cargar link de invitación:", err);
+      setView(AppView.LOGIN_CHOICE);
+    }
+  };
+
   const handleToggleLanguage = () => {
     const newLang = language === 'es' ? 'en' : 'es';
     setLanguage(newLang);
