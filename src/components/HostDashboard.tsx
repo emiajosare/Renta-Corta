@@ -41,11 +41,12 @@ export default function HostDashboard({ user, onLogout, onStartCreating }: HostD
         <div className="grid md:grid-cols-2 gap-8 items-center bg-white/[0.02] border border-white/10 p-8 md:p-12 rounded-[3rem] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-[#C9A84C]/10 rounded-full blur-[100px] pointer-events-none" />
           <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10 group bg-black shadow-lg">
-            <iframe className="w-full h-full relative z-10" src="https://www.youtube.com/embed/f0mAyui2rdc?rel=0&modestbranding=1" title="Video" frameBorder="0" allowFullScreen />
+            <iframe className="w-full h-full relative z-10" src="https://www.youtube.com/embed/r0GtneZOZzo?si=1VMQ6vF1h3N22-Zg" title="Video" frameBorder="0" allowFullScreen />
           </div>
           <div className="flex flex-col justify-center">
-            <h2 className="text-2xl font-bold mb-4 text-white">1. Mira el tutorial de 2 minutos</h2>
-            <p className="text-white/60 mb-8 leading-relaxed">Te explicamos exactamente cómo cargar las fotos de tu propiedad y generar tu enlace mágico.</p>
+            <h2 className="text-2xl font-bold mb-4 text-white">1. Mira el tutorial de 7 minutos</h2>
+            <p className="text-white/60 mb-2 leading-relaxed">Te explicamos exactamente cómo cargar las fotos de tu propiedad y generar tu enlace mágico.</p>
+            <p className="text-white/60 mb-8 leading-relaxed">Ve a YOUTUBE para que puedas pausar y seguir el Paso a Paso.</p>
             <button 
               onClick={onStartCreating} // 🟢 Llama a la función de App.tsx
               className="w-full py-5 bg-[#C9A84C] text-black font-black text-lg rounded-full hover:bg-[#b5953f] hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
