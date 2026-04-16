@@ -94,7 +94,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClo
         <div className="text-center mb-8">
           <Logo showText={false} imageClass="w-16 h-16 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(201,168,76,0.3)]" containerClass="flex justify-center" />
           <h2 className="text-2xl font-bold mb-2 text-white">{isLogin ? 'Accede a tu cuenta' : 'Reclama tu Cupo Fundador'}</h2>
-          <p className="text-sm text-white/50">{isLogin ? 'Gestiona tus propiedades.' : 'Quedan pocos cupos gratuitos disponibles.'}</p>
+          <p className="text-sm text-white/50">{isLogin ? 'Gestiona tus propiedades.' : 'Quedan pocos cupos fundador disponibles.'}</p>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4 text-left">
