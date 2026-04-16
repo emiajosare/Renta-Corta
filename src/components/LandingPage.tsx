@@ -114,13 +114,13 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClo
           )}
 
           <button type="submit" disabled={loading} className="w-full py-4 bg-[#C9A84C] text-black font-black rounded-full hover:bg-[#b5953f] transition-all flex items-center justify-center shadow-[0_10px_20px_rgba(201,168,76,0.15)] disabled:opacity-50">
-            {loading ? 'Procesando...' : (isLogin ? 'Entrar al Panel' : 'Asegurar mi cuenta gratis')}
+            {loading ? 'Procesando...' : (isLogin ? 'Entrar al Panel' : 'Asegurar mi cuenta fundador')}
           </button>
         </form>
 
         <div className="mt-8 text-center">
           <button onClick={() => setIsLogin(!isLogin)} className="text-xs text-white/40 hover:text-[#C9A84C] transition-colors font-medium">
-            {isLogin ? '¿No tienes cuenta? Reclama tu cupo gratis' : '¿Ya tienes cuenta? Inicia sesión'}
+            {isLogin ? '¿No tienes cuenta? Reclama tu cupo fundador' : '¿Ya tienes cuenta? Inicia sesión'}
           </button>
         </div>
       </div>
@@ -187,10 +187,9 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
                 <h3 className="text-2xl font-bold mb-2 text-white">Plan Fundador</h3>
                 <div className="flex items-baseline justify-center gap-1 mb-8">
                   <span className="text-5xl font-bold text-white">$0</span>
-                  <span className="text-white/40 text-sm">/ de por vida</span>
                 </div>
                 <button onClick={() => setShowAuth(true)} className="w-full py-4 bg-[#C9A84C] text-black rounded-full font-bold transition-all hover:bg-[#b5953f]">
-                  Reclamar Cupo Gratis
+                  Reclamar Cupo Fundador
                 </button>
               </div>
             </div>
