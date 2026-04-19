@@ -48,8 +48,9 @@ const App: React.FC = () => {
   // 🟢 NUEVO: DETECTOR DE LINKS DE INVITACIÓN (/stay/[id])
 useEffect(() => {
   const path = window.location.pathname;
-  if (path.startsWith('/stay/')) {
-    const propertyShortId = path.split('/')[2];
+  if (path.includes('/stay/')) {
+    const parts = path.split('/');
+    const propertyShortId = parts[parts.indexOf('stay') + 1];
     if (propertyShortId) {
       handleAutoLoginGuest(propertyShortId);
     }
@@ -58,38 +59,61 @@ useEffect(() => {
 
   // Función auxiliar para procesar el link del huésped
   const handleAutoLoginGuest = async (shortId: string) => {
-    try {
-      // 1. Buscamos la propiedad que coincida con el ID (o los primeros caracteres del UUID)
-      const { data: propertyData, error: propError } = await supabase
-        .from('properties')
-        .select('*, owners(avatar_url)')
-        .or(`id.ilike.${shortId}%,id.eq.${shortId}`) // Busca coincidencia exacta o por inicio de UUID
-        .single();
+  try {
+    // 1. Limpiamos cualquier rastro anterior
+    setSelectedProperty(null); 
 
-      if (propError || !propertyData) throw new Error("Propiedad no encontrada");
+    // 2. Construimos el rango de búsqueda para el UUID
+    // Un UUID tiene un formato 8-4-4-4-12. Al usar los primeros 8 caracteres,
+    // buscamos desde el valor más bajo (0000...) hasta el más alto (ffff...)
+    const startRange = `${shortId}-0000-0000-0000-000000000000`;
+    const endRange = `${shortId}-ffff-ffff-ffff-ffffffffffff`;
 
-      // 2. En este punto, como el link es genérico para la propiedad, 
-      // enviamos al huésped a la pantalla de LOGIN para que ponga su código de reserva.
-      setSelectedProperty({
-        ...propertyData,
-        ownerId: propertyData.owner_id,
-        buildingName: propertyData.building_name,
-        hostName: propertyData.host_name,
-        wifiSSID: propertyData.wifi_ssid,
-        wifiPass: propertyData.wifi_pass,
-        checkoutInstructions: propertyData.checkout_instructions,
-        welcomeImageUrl: propertyData.welcome_image_url,
-        stayImageUrl: propertyData.stay_image_url,
-        whatsappContact: propertyData.whatsapp_contact,
-        aiRecommendations: propertyData.ai_recommendations
-      });
-      
-      setView(AppView.GUEST_LOGIN); // Lo mandamos a que valide su código
-    } catch (err) {
-      console.error("Error al cargar link de invitación:", err);
+    // 3. Consultamos a Supabase usando comparadores de rango (GTE y LTE)
+    // Esto es compatible con el tipo UUID y es extremadamente rápido.
+    const { data: propertyData, error: propError } = await supabase
+      .from('properties')
+      .select('*')
+      .gte('id', startRange)
+      .lte('id', endRange)
+      .maybeSingle();
+
+    if (propError) throw propError;
+
+    if (!propertyData) {
+      console.warn("⚠️ No se encontró ninguna propiedad con ese ID corto.");
       setView(AppView.LOGIN_CHOICE);
+      return;
     }
-  };
+
+    // 4. Mapeo de datos (De Base de Datos a la App)
+    const cleanProperty: PropertySettings = {
+      ...propertyData,
+      ownerId: propertyData.owner_id,
+      buildingName: propertyData.building_name || 'Bienvenido',
+      hostName: propertyData.host_name,
+      wifiSSID: propertyData.wifi_ssid,
+      wifiPass: propertyData.wifi_pass,
+      welcomeImageUrl: propertyData.welcome_image_url, 
+      stayImageUrl: propertyData.stay_image_url,
+      checkoutInstructions: propertyData.checkout_instructions,
+      whatsappContact: propertyData.whatsapp_contact,
+      aiRecommendations: propertyData.ai_recommendations || {},
+      location_lat: propertyData.location_lat,
+      location_lng: propertyData.location_lng
+    };
+
+    setSelectedProperty(cleanProperty);
+    
+    // 5. Activamos la alfombra roja
+    setView(AppView.GUEST_LOGIN); 
+
+  } catch (err) {
+    console.error("❌ Error al cargar la invitación:", err);
+    // Si hay error, volvemos a la pantalla de entrada normal
+    setView(AppView.LOGIN_CHOICE);
+  }
+};
 
   const handleToggleLanguage = () => {
     const newLang = language === 'es' ? 'en' : 'es';
@@ -258,12 +282,7 @@ useEffect(() => {
     setSelectedProperty(newProp);
     setView(AppView.PROPERTY_DETAIL);
   };
-
-  const bgImage = useMemo(() => {
-    const featuredProperty = selectedProperty || properties[0];
-    return featuredProperty?.stayImageUrl || 'https://images.unsplash.com/photo-1549517045-bc93de075e53?auto=format&fit=crop&w=1600&q=80';
-  }, [selectedProperty, properties]);
-
+  
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       {/* Header Responsivo Owner */}
@@ -286,36 +305,40 @@ useEffect(() => {
       )}
 
       {/* Guest Navbar */}
-      {!currentOwner && view === AppView.LOGIN_CHOICE && (
-        <nav className="bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+       {/* 🟢 NAVBAR DINÁMICA: Muestra el nombre del inmueble o HostFlow por defecto */}
+      {!currentOwner && (view === AppView.LOGIN_CHOICE || view === AppView.GUEST_LOGIN) && (
+        <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-4 flex justify-between items-center sticky top-0 z-50">
           <div className="flex items-center space-x-2">
             <span className="font-black text-lg sm:text-xl tracking-tighter uppercase text-slate-900 truncate">
-              HostFlow
+              {/* Si hay una propiedad seleccionada y tiene nombre, lo muestra. Si no, muestra HostFlow */}
+              {selectedProperty?.buildingName || 'HostFlow'}
             </span>
           </div>
         </nav>
       )}
 
       <main>
-        {/* LA PUERTA DE LOS HUÉSPEDES */}
+       {/* 🚪 PUERTA DE ENTRADA LIMPIA */}
         {view === AppView.LOGIN_CHOICE && (
-          <div className="relative min-h-[calc(100vh-72px)] flex flex-col items-center overflow-hidden">
-            <div className="absolute inset-0 bg-cover bg-center transition-all duration-1000 scale-105" style={{ backgroundImage: `url(${bgImage})` }}>
-              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]"></div>
-            </div>
-           <div className="flex flex-col items-center">
-              <GuestLogin 
-                onLoginSuccess={handleGuestLogin} 
-                language={language}
-                onToggleLanguage={handleToggleLanguage}
-                onExit={() => setView(AppView.LOGIN_CHOICE)}
-                onHostAccess={handleHostAccess} 
-              />
-              <button onClick={handleHostAccess} className="-mt-4 text-[9px] font-black text-white/50 uppercase tracking-[0.3em] z-20 hover:text-white transition-colors">
-                ACCESO ANFITRIÓN
-              </button>
-            </div>
-          </div>
+          <GuestLogin 
+            onLoginSuccess={handleGuestLogin} 
+            language={language}
+            onToggleLanguage={handleToggleLanguage}
+            onExit={() => setView(AppView.LOGIN_CHOICE)}
+            onHostAccess={handleHostAccess} 
+          />
+        )}
+
+        {/* 🟢 VISTA DE BIENVENIDA PERSONALIZADA (Vía Link) */}
+        {view === AppView.GUEST_LOGIN && selectedProperty && (
+          <GuestLogin 
+            property={selectedProperty} 
+            onLoginSuccess={handleGuestLogin} 
+            language={language}
+            onToggleLanguage={handleToggleLanguage}
+            onExit={() => setView(AppView.LOGIN_CHOICE)}
+            onHostAccess={handleHostAccess} 
+          />
         )}
 
         {/* 🟢 LA NUEVA PUERTA DE ENTRADA (LANDING PAGE) */}
@@ -396,11 +419,21 @@ useEffect(() => {
             />
         )}
 
-        {/* 🟢 LA NUEVA PUERTA DE ACCESO DIRECTO PARA ANFITRIONES */}
+       {/* 🟢 LA NUEVA PUERTA DE ACCESO DIRECTO PARA ANFITRIONES */}
         {view === AppView.OWNER_LOGIN && (
           <OwnerLogin 
-            onLoginSuccess={handleLandingLoginSuccess} // Reutilizamos tu lógica perfecta de enrutamiento
-            onBack={() => setView(AppView.LOGIN_CHOICE)} 
+            onLoginSuccess={handleLandingLoginSuccess} 
+            onBack={() => {
+              // 🧠 LÓGICA INTELIGENTE:
+              // Si tenemos una propiedad seleccionada (el huésped vino por link),
+              // lo regresamos a GUEST_LOGIN para mantener su imagen y datos.
+              // Si no, lo mandamos al selector normal.
+              if (selectedProperty) {
+                setView(AppView.GUEST_LOGIN);
+              } else {
+                setView(AppView.LOGIN_CHOICE);
+              }
+            }} 
           />
         )}
 
