@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { type Owner, type PropertySettings, type AccessControl, type Language } from './types';
 import { AppView } from "./types";
-import { MOCK_OWNERS, MOCK_PROPERTIES, MOCK_ACCESS, STORAGE_KEYS } from './constants';
+import { STORAGE_KEYS } from './constants';
 import GuestLogin from './components/GuestLogin';
 import PropertyForm from './components/PropertyForm';
 import GuestDashboard from './components/GuestDashboard';
@@ -11,6 +11,30 @@ import { translations } from './translations';
 import { supabase } from './lib/supabaseClient';
 import SuperAdminPanel from './components/SuperAdminPanel';
 import OwnerLogin from './components/OwnerLogin';
+import InitialSecurityConfig from './components/InitialSecurityConfig';
+
+/// Capturamos TODO antes de limpiar la URL
+const _urlParams  = new URLSearchParams(window.location.search);
+const _hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+// ← AGREGA ESTAS DOS LÍNEAS AQUÍ, ANTES DE LIMPIAR
+console.log('🔍 URL search completo:', window.location.search);
+console.log('🔍 URL hash completo:', window.location.hash);
+const INITIAL_ACTION        = _urlParams.get('action');
+const INITIAL_SESSION_ID    = _urlParams.get('session_id');
+const INITIAL_PLAN          = _urlParams.get('plan');
+const INITIAL_CODE          = _urlParams.get('code');
+const INITIAL_ACCESS_TOKEN  = _hashParams.get('access_token');
+const INITIAL_REFRESH_TOKEN = _hashParams.get('refresh_token');
+
+// Limpiamos la URL solo después de capturar todo
+if (INITIAL_ACTION === 'reset-password') {
+  // Limpiamos solo el query string — preservamos el hash para que Supabase lo procese
+  window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+} else if (INITIAL_ACTION || INITIAL_CODE || INITIAL_ACCESS_TOKEN) {
+  // Para otros casos, limpiamos todo
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
 
 const App: React.FC = () => {
   const [owners, setOwners] = useState<Owner[]>([]);
@@ -28,34 +52,181 @@ const App: React.FC = () => {
   const [accessRecords, setAccessRecords] = useState<AccessControl[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<PropertySettings | null>(null);
   const [error, setError] = useState<string>('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
+  const [isVerifying, setIsVerifying] = useState(
+    INITIAL_ACTION === 'signup' && !!INITIAL_SESSION_ID
+  );
+  const [prefillEmail, setPrefillEmail] = useState<string>('');
   const [language, setLanguage] = useState<Language>('es');
 
   useEffect(() => {
-    const savedOwners = localStorage.getItem(STORAGE_KEYS.OWNERS);
-    const savedProps = localStorage.getItem(STORAGE_KEYS.PROPERTIES);
-    const savedAccess = localStorage.getItem(STORAGE_KEYS.ACCESS_CONTROL);
     const savedLang = localStorage.getItem('ss_language') as Language;
-
-    if (savedOwners) setOwners(JSON.parse(savedOwners));
-    else { setOwners(MOCK_OWNERS); localStorage.setItem(STORAGE_KEYS.OWNERS, JSON.stringify(MOCK_OWNERS)); }
-
-    setProperties(savedProps ? JSON.parse(savedProps) : MOCK_PROPERTIES);
-    setAccessRecords(savedAccess ? JSON.parse(savedAccess) : MOCK_ACCESS);
     if (savedLang) setLanguage(savedLang);
   }, []);
 
   // 🟢 NUEVO: DETECTOR DE LINKS DE INVITACIÓN (/stay/[id])
-useEffect(() => {
-  const path = window.location.pathname;
-  if (path.includes('/stay/')) {
-    const parts = path.split('/');
-    const propertyShortId = parts[parts.indexOf('stay') + 1];
-    if (propertyShortId) {
-      handleAutoLoginGuest(propertyShortId);
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path.includes('/stay/')) {
+      const parts = path.split('/');
+      const propertyShortId = parts[parts.indexOf('stay') + 1];
+      if (propertyShortId) {
+        handleAutoLoginGuest(propertyShortId);
+      }
     }
-  }
+  }, []);
+
+ useEffect(() => {
+  console.log('🚀 Params capturados:', { 
+    action: INITIAL_ACTION, 
+    sessionId: INITIAL_SESSION_ID,
+    plan: INITIAL_PLAN 
+  });
+
+  // Función interna async para poder usar await
+    const handleInitialAction = async () => {
+
+      if (INITIAL_ACTION === 'reset-password') {
+        // Supabase procesa el hash automáticamente al inicializar
+        // El onAuthStateChange captura el SIGNED_IN sin conflicto de locks
+        return;
+      }
+      if (INITIAL_ACTION === 'signup' && INITIAL_SESSION_ID) {
+        verifyStripeSession(INITIAL_SESSION_ID);
+      } else if (INITIAL_ACTION === 'signup') {
+        setView(AppView.LANDING_PAGE);
+      }
+    };
+
+    handleInitialAction();
 }, []);
+
+// useEffect dedicado SOLO para cambios de auth — va junto a los otros useEffects
+ useEffect(() => {
+    if (INITIAL_ACTION !== 'reset-password') return;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔐 Auth event recibido:', event, '| User:', session?.user?.id);
+
+        // Capturamos SIGNED_IN y PASSWORD_RECOVERY
+        if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session?.user?.id) {
+          subscription.unsubscribe();
+
+          // Pequeña pausa para que el lock de Supabase se libere completamente
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          const { data: ownerData, error: ownerError } = await supabase
+            .from('owners')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+            console.log('👤 Owner query:', { ownerData, ownerError, userId: session.user.id });
+
+          if (ownerData) {
+            setCurrentOwner({
+              id: ownerData.id,
+              name: ownerData.name,
+              email: ownerData.email || '',
+              master_pin: ownerData.master_pin || '',
+              token: ownerData.token,
+              is_first_login: ownerData.is_first_login,
+              tokenPersonalized: !ownerData.is_first_login,
+              role: ownerData.role || 'owner',
+              avatarUrl: ownerData.avatar_url,
+              is_founder: ownerData.is_founder
+            });
+            setView(AppView.INITIAL_SECURITY);
+          }
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 🟢 NUEVO: DETECTOR DE COMPRA DE PLANES (Ej: ?plan=fundador)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const planToBuy = params.get('plan');
+
+    if (planToBuy && currentOwner) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      handleStartCheckout(planToBuy);
+    }
+  }, [currentOwner]);
+
+  // Restaura sesión activa al recargar la página
+  useEffect(() => {
+    const restoreSession = async () => {
+      // Si estamos en un flujo de reset, no restauramos sesión aquí
+      // El handleInitialAction ya se encarga de ese caso
+      if (INITIAL_ACTION === 'reset-password' || INITIAL_ACCESS_TOKEN) return;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: ownerData } = await supabase
+        .from('owners')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (ownerData) {
+        setCurrentOwner({
+          id: ownerData.id,
+          name: ownerData.name,
+          email: ownerData.email || '',
+          master_pin: ownerData.master_pin || '',
+          token: ownerData.token,
+          is_first_login: ownerData.is_first_login,
+          tokenPersonalized: !ownerData.is_first_login,
+          role: ownerData.role || 'owner',
+          avatarUrl: ownerData.avatar_url,
+          is_founder: ownerData.is_founder
+        });
+
+        if (!INITIAL_SESSION_ID) {
+          setView(ownerData.is_first_login
+            ? AppView.HOST_ONBOARDING
+            : AppView.PROPERTY_LIST
+          );
+        }
+      }
+    };
+
+    restoreSession();
+  }, []);
+
+
+  // REEMPLAZA toda la función handleStartCheckout
+    const handleStartCheckout = async (planId: string, ownerOverride?: Owner) => {
+      const owner = ownerOverride || currentOwner;
+      
+      if (!owner) {
+        alert('Debes iniciar sesión antes de continuar con el pago.');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+          body: {
+            planId,
+            ownerId: owner.id,
+            email: owner.email
+          }
+        });
+
+        if (error) throw error;
+        if (data?.url) window.location.href = data.url;
+
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Error al conectar con la pasarela de pago.';
+        alert(message);
+      }
+    };
 
   // Función auxiliar para procesar el link del huésped
   const handleAutoLoginGuest = async (shortId: string) => {
@@ -140,6 +311,12 @@ useEffect(() => {
 
     setCurrentOwner(formattedOwner);
 
+   // EN handleLandingLoginSuccess — reemplaza las líneas 191-196
+    if (formattedOwner.role !== 'superadmin' && ownerData.subscription_status !== 'active') {
+      // Pasamos formattedOwner directamente — no dependemos del estado de React
+      await handleStartCheckout('fundador', formattedOwner);
+      return;
+    }
     // Descargamos las propiedades reales
     const { data: userProps, error: propsError } = await supabase
       .from('properties')
@@ -250,30 +427,33 @@ useEffect(() => {
     setSelectedProperty(updatedProp);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setCurrentOwner(null);
-    setCurrentGuest(null);
     setSelectedProperty(null);
-    setError('');
-    localStorage.clear(); 
-    sessionStorage.clear();
-    setView(AppView.LOGIN_CHOICE); 
+    setProperties([]);
+    setView(AppView.LOGIN_CHOICE);
   };
   
   const handleHostAccess = () => {
     setView(AppView.OWNER_LOGIN); 
   };
 
-  const createNewProperty = () => {
+  const createNewProperty = (initialData?: any) => {
     if (!currentOwner) return;
     const newPropId = `p${Date.now()}`;
+    
     const newProp: PropertySettings = {
       id: newPropId,
       ownerId: currentOwner.id,
-      buildingName: '', 
+      buildingName: initialData?.propName || '', // 🟢 Toma el nombre del Dashboard
       hostName: currentOwner.name, 
-      city: '', address: '', capacity: '', rooms: 0, bathrooms: 0,
-      wifiSSID: '', wifiPass: '', rules: '', guides: '', checkoutInstructions: '', whatsappContact: '', welcomeImageUrl: '', stayImageUrl: ''
+      city: initialData?.city || '',             // 🟢 Toma la ciudad
+      address: initialData?.address || '',       // 🟢 Toma la dirección
+      stayImageUrl: initialData?.bgImage || '', // 🟢 Toma la imagen de fondo
+      capacity: '', rooms: 0, bathrooms: 0,
+      wifiSSID: '', wifiPass: '', rules: '', guides: '', 
+      checkoutInstructions: '', whatsappContact: '', welcomeImageUrl: ''
     };
 
     const updatedProps = [...properties, newProp];
@@ -282,7 +462,58 @@ useEffect(() => {
     setSelectedProperty(newProp);
     setView(AppView.PROPERTY_DETAIL);
   };
-  
+
+    const verifyStripeSession = async (sessionId: string) => {
+      setIsVerifying(true); // ya está en true desde el estado inicial, pero por seguridad
+      try {
+        const { data, error } = await supabase.functions.invoke('verify-stripe-session', {
+          body: { sessionId }
+        });
+
+        if (error || !data?.owner) {
+          setView(AppView.LANDING_PAGE);
+          return;
+        }
+
+        const owner = data.owner;
+        setCurrentOwner({
+          id: owner.id,
+          name: owner.name,
+          email: owner.email || '',
+          master_pin: owner.master_pin || '',
+          token: owner.token,
+          is_first_login: owner.is_first_login,
+          tokenPersonalized: !owner.is_first_login,
+          role: owner.role || 'owner',
+          avatarUrl: owner.avatar_url,
+          is_founder: owner.is_founder
+        });
+
+        setView(owner.is_first_login
+          ? AppView.HOST_ONBOARDING
+          : AppView.PROPERTY_LIST
+        );
+
+      } catch (err) {
+        setView(AppView.LANDING_PAGE);
+      } finally {
+        setIsVerifying(false); // siempre apagamos el loader al terminar
+      }
+    };
+
+     // 🔄 PANTALLA DE VERIFICACIÓN — va ANTES del return principal
+      if (isVerifying) {
+        return (
+          <div className="min-h-screen bg-[#080808] flex flex-col items-center justify-center gap-6">
+            <img src="/logo.png" alt="HostFlow" className="w-16 h-16 animate-pulse" />
+            <p className="text-white/60 text-sm font-bold uppercase tracking-[0.3em]">
+              Verificando tu pago...
+            </p>
+            <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          </div>
+        );
+      }
+      
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans">
       {/* Header Responsivo Owner */}
@@ -318,95 +549,98 @@ useEffect(() => {
       )}
 
       <main>
-       {/* 🚪 PUERTA DE ENTRADA LIMPIA */}
-        {view === AppView.LOGIN_CHOICE && (
-          <GuestLogin 
-            onLoginSuccess={handleGuestLogin} 
-            language={language}
-            onToggleLanguage={handleToggleLanguage}
-            onExit={() => setView(AppView.LOGIN_CHOICE)}
-            onHostAccess={handleHostAccess} 
-          />
-        )}
+          {/* 🚪 PUERTA DE ENTRADA LIMPIA */}
+            {view === AppView.LOGIN_CHOICE && (
+              <GuestLogin 
+                onLoginSuccess={handleGuestLogin} 
+                language={language}
+                onToggleLanguage={handleToggleLanguage}
+                onExit={() => setView(AppView.LOGIN_CHOICE)}
+                onHostAccess={handleHostAccess} 
+              />
+            )}
 
-        {/* 🟢 VISTA DE BIENVENIDA PERSONALIZADA (Vía Link) */}
-        {view === AppView.GUEST_LOGIN && selectedProperty && (
-          <GuestLogin 
-            property={selectedProperty} 
-            onLoginSuccess={handleGuestLogin} 
-            language={language}
-            onToggleLanguage={handleToggleLanguage}
-            onExit={() => setView(AppView.LOGIN_CHOICE)}
-            onHostAccess={handleHostAccess} 
-          />
-        )}
+            {/* 🟢 VISTA DE BIENVENIDA PERSONALIZADA (Vía Link) */}
+            {view === AppView.GUEST_LOGIN && selectedProperty && (
+              <GuestLogin 
+                property={selectedProperty} 
+                onLoginSuccess={handleGuestLogin} 
+                language={language}
+                onToggleLanguage={handleToggleLanguage}
+                onExit={() => setView(AppView.LOGIN_CHOICE)}
+                onHostAccess={handleHostAccess} 
+              />
+            )}
 
-        {/* 🟢 LA NUEVA PUERTA DE ENTRADA (LANDING PAGE) */}
-        {view === AppView.LANDING_PAGE && (
-          <LandingPage onLoginSuccess={handleLandingLoginSuccess} />
-        )}
+            {/* 🟢 LA NUEVA PUERTA DE ENTRADA (LANDING PAGE) */}
+            {view === AppView.LANDING_PAGE && (
+              <LandingPage 
+                onLoginSuccess={handleLandingLoginSuccess}
+                autoOpenModal={INITIAL_ACTION === 'signup' && !INITIAL_SESSION_ID}
+              />
+            )}
 
-        {/* 🟢 EL DASHBOARD DE BIENVENIDA (Solo Nuevos) */}
-        {view === AppView.HOST_ONBOARDING && currentOwner && (
-          <HostDashboard 
-            user={currentOwner} 
-            onLogout={handleLogout} 
-            onStartCreating={createNewProperty} // Llama a la función real!
-          />
-        )}
-                
-        {view === AppView.PROPERTY_LIST && currentOwner && (
-          (() => {
-            const userPropertiesCount = properties.filter(p => p.ownerId === currentOwner.id).length;
-            const isAddDisabled = currentOwner.is_founder && userPropertiesCount >= 1;
+            {/* 🟢 EL DASHBOARD DE BIENVENIDA (Solo Nuevos) */}
+            {view === AppView.HOST_ONBOARDING && currentOwner && (
+              <HostDashboard 
+                user={currentOwner} 
+                onLogout={handleLogout} 
+                onStartCreating={(data: any) => createNewProperty(data)} // Llama a la función real!
+              />
+            )}
+                    
+            {view === AppView.PROPERTY_LIST && currentOwner && (
+              (() => {
+                const userPropertiesCount = properties.filter(p => p.ownerId === currentOwner.id).length;
+                const isAddDisabled = currentOwner.is_founder && userPropertiesCount >= 1;
 
-            return (
-              <div className="py-12 sm:py-16 px-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                <div className="flex flex-col sm:flex-row justify-between items-end mb-12 gap-6 border-b border-slate-100 pb-8">
-                  <div className="text-center sm:text-left">
-                    <span className="text-[#0052FF] text-[10px] font-black tracking-[0.4em] uppercase mb-2 block">Gestión de Activos</span>
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{t.owner.listTitle}</h2>
-                  </div>
-                  
-                  {/* 🟢 BOTÓN INTELIGENTE (Reemplaza tu botón actual por este) */}
-                  <button 
-                    onClick={isAddDisabled ? undefined : createNewProperty} 
-                    disabled={isAddDisabled}
-                    title={isAddDisabled ? "Plan Fundador limitado a 1 propiedad. Actualiza tu plan para más." : ""}
-                    className={`w-full sm:w-auto px-10 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all duration-300 ${
-                      isAddDisabled 
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none' 
-                        : 'bg-[#0052FF] text-white shadow-2xl shadow-blue-500/30 hover:bg-blue-600 hover:-translate-y-1 active:scale-95'
-                    }`}
-                  >
-                    {isAddDisabled ? '+ Añadir inmueble' : t.owner.addProp}
-                  </button>
+                return (
+                  <div className="py-12 sm:py-16 px-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                    <div className="flex flex-col sm:flex-row justify-between items-end mb-12 gap-6 border-b border-slate-100 pb-8">
+                      <div className="text-center sm:text-left">
+                        <span className="text-[#0052FF] text-[10px] font-black tracking-[0.4em] uppercase mb-2 block">Gestión de Activos</span>
+                        <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{t.owner.listTitle}</h2>
+                      </div>
+                      
+                      {/* 🟢 BOTÓN INTELIGENTE (Reemplaza tu botón actual por este) */}
+                      <button 
+                        onClick={isAddDisabled ? undefined : createNewProperty} 
+                        disabled={isAddDisabled}
+                        title={isAddDisabled ? "Plan Fundador limitado a 1 propiedad. Actualiza tu plan para más." : ""}
+                        className={`w-full sm:w-auto px-10 py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all duration-300 ${
+                          isAddDisabled 
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200 shadow-none' 
+                            : 'bg-[#0052FF] text-white shadow-2xl shadow-blue-500/30 hover:bg-blue-600 hover:-translate-y-1 active:scale-95'
+                        }`}
+                      >
+                        {isAddDisabled ? '+ Añadir inmueble' : t.owner.addProp}
+                      </button>
+                    </div>
+            
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                  {properties.filter(p => p.ownerId === currentOwner.id).map(prop => (
+                    <div key={prop.id} onClick={() => { setSelectedProperty(prop); setView(AppView.PROPERTY_DETAIL); }} className="group bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-50 hover:shadow-[0_40px_80px_rgba(0,0,0,0.08)] hover:-translate-y-3 cursor-pointer transition-all duration-500 overflow-hidden">
+                      <div className="relative aspect-video overflow-hidden">
+                        <div className="absolute inset-0 bg-slate-200 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: prop.stayImageUrl ? `url(${prop.stayImageUrl})` : '', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                        </div>
+                        <div className="absolute top-5 right-5">
+                          <span className="bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-black text-slate-900 uppercase tracking-widest shadow-sm">{prop.city}</span>
+                        </div>
+                      </div>
+                      <div className="p-8 sm:p-10">
+                        <h3 className="font-black text-slate-900 text-2xl tracking-tighter mb-2 group-hover:text-[#0052FF] transition-colors duration-300">{prop.buildingName || 'Nueva Propiedad'}</h3>
+                        <div className="flex items-center text-slate-400 space-x-2">
+                          <p className="text-[11px] font-bold uppercase tracking-widest truncate">{prop.address || 'Sin dirección'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-        
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-              {properties.filter(p => p.ownerId === currentOwner.id).map(prop => (
-                <div key={prop.id} onClick={() => { setSelectedProperty(prop); setView(AppView.PROPERTY_DETAIL); }} className="group bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-50 hover:shadow-[0_40px_80px_rgba(0,0,0,0.08)] hover:-translate-y-3 cursor-pointer transition-all duration-500 overflow-hidden">
-                  <div className="relative aspect-video overflow-hidden">
-                    <div className="absolute inset-0 bg-slate-200 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style={{ backgroundImage: prop.stayImageUrl ? `url(${prop.stayImageUrl})` : '', backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    </div>
-                    <div className="absolute top-5 right-5">
-                      <span className="bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[9px] font-black text-slate-900 uppercase tracking-widest shadow-sm">{prop.city}</span>
-                    </div>
-                  </div>
-                  <div className="p-8 sm:p-10">
-                    <h3 className="font-black text-slate-900 text-2xl tracking-tighter mb-2 group-hover:text-[#0052FF] transition-colors duration-300">{prop.buildingName || 'Nueva Propiedad'}</h3>
-                    <div className="flex items-center text-slate-400 space-x-2">
-                      <p className="text-[11px] font-bold uppercase tracking-widest truncate">{prop.address || 'Sin dirección'}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-         );
-      })()
-    )}
+              </div>
+            );
+          })()
+        )}
 
         {view === AppView.PROPERTY_DETAIL && selectedProperty && currentOwner && (
             <PropertyForm 
@@ -423,19 +657,32 @@ useEffect(() => {
         {view === AppView.OWNER_LOGIN && (
           <OwnerLogin 
             onLoginSuccess={handleLandingLoginSuccess} 
+            defaultEmail={prefillEmail}
             onBack={() => {
-              // 🧠 LÓGICA INTELIGENTE:
-              // Si tenemos una propiedad seleccionada (el huésped vino por link),
-              // lo regresamos a GUEST_LOGIN para mantener su imagen y datos.
-              // Si no, lo mandamos al selector normal.
               if (selectedProperty) {
                 setView(AppView.GUEST_LOGIN);
               } else {
                 setView(AppView.LOGIN_CHOICE);
               }
-            }} 
+            }}             
           />
         )}
+
+        {/* 🔐 CAMBIO DE CONTRASEÑA (Reset Password) */}
+       {view === AppView.INITIAL_SECURITY && currentOwner && (
+        <InitialSecurityConfig
+          owner={currentOwner}
+          onConfigSuccess={async (updatedOwner: Owner) => {
+            const email = updatedOwner.email;
+            await supabase.auth.signOut();
+            setCurrentOwner(null);
+            setProperties([]);
+            setPrefillEmail(email);
+            setView(AppView.OWNER_LOGIN);
+          }}
+          language={language}
+        />
+      )}
 
         {view === AppView.SUPER_ADMIN_PANEL && (
           <SuperAdminPanel onLogout={handleLogout} />

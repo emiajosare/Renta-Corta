@@ -1,61 +1,167 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ImageUploader from './ImageUploader';
 
-interface HostDashboardProps {
-  user: any;
-  onLogout: () => void;
-  onStartCreating: () => void; // 🟢 Conecta directamente con tu App.tsx
-}
-
+// Definición local de Logo para evitar errores de IntrinsicAttributes
 const Logo = ({ imageClass = "w-10 h-10", showText = true, containerClass = "flex items-center gap-3" }) => (
   <div className={containerClass}>
-    <img src="/logo.png" alt="HostFlow Logo" className={`${imageClass} object-contain`} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+    <img src="/logo.png" alt="Logo" className={`${imageClass} object-contain`} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
     {showText && <span className="text-xl font-bold tracking-tighter text-white">Host<span className="text-[#C9A84C]">Flow</span></span>}
   </div>
 );
 
-export default function HostDashboard({ user, onLogout, onStartCreating }: HostDashboardProps) {
+export default function HostDashboard({ user, onLogout, onStartCreating }: any) {
+  const [setupData, setSetupData] = useState({
+    propName: "",
+    city: "",
+    address: "",
+    bgImage: "" 
+  });
+
   return (
-    <div className="min-h-screen bg-[#080808] text-white font-sans selection:bg-[#C9A84C] selection:text-black">
+    <div className="min-h-screen bg-[#080808] text-white font-sans">
+      {/* NAVBAR SUPERIOR */}
       <nav className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/10 px-6 py-4 flex justify-between items-center">
-        <Logo showText={true} imageClass="w-10 h-10" />
-        <div className="flex items-center gap-6">
-          <div className="hidden md:block text-sm text-white/60">
-            <span className="text-white/40">Hola,</span> {user?.email || 'Fundador'}
-          </div>
-          <button onClick={onLogout} className="p-2 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-all">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-          </button>
-        </div>
+        <Logo showText={true} />
+        <button onClick={onLogout} className="text-[10px] font-black tracking-widest text-white/40 hover:text-red-500 transition-colors uppercase">
+          CERRAR SESIÓN
+        </button>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-12">
-        <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#C9A84C]/10 border border-[#C9A84C]/20 text-[#C9A84C] text-xs font-bold uppercase tracking-widest mb-4">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            Cuenta Fundador Activa
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-73px)] overflow-hidden">
+        
+        {/* PANEL IZQUIERDO: SIMULADOR REFINADO */}
+        <div className="hidden lg:flex w-1/2 bg-black items-center justify-center p-8 border-r border-white/5">
+          <div className="relative w-[320px] h-[640px] bg-[#111] rounded-[2rem] border-[8px] border-[#1a1a1a] shadow-2xl overflow-hidden flex flex-col">
+            
+            {/* Imagen de Fondo Dinámica */}
+            <div className="absolute inset-0 z-0">
+              {setupData.bgImage ? (
+                <img src={setupData.bgImage} className="w-full h-full object-cover animate-in fade-in duration-700" alt="Property Background" />
+              ) : (
+                <div className="w-full h-full bg-slate-900 flex items-center justify-center text-white/5 text-[10px] italic">Sube la imagen exterior</div>
+              )}
+              <div className="absolute inset-0 bg-black/20" />
+            </div>
+
+            {/* INTERFAZ DEL HUÉSPED */}
+            <div className="relative z-10 flex-1 flex flex-col">
+              
+              {/* Cabecera Blanca: Nombre Alineado a la Izquierda */}
+              <div className="bg-white/95 backdrop-blur-sm border-b border-slate-200 px-6 w-full flex items-center h-16 shadow-sm">
+                <h4 className="text-slate-900 font-black uppercase tracking-[0.15em] text-[11px] truncate animate-in slide-in-from-left-2 duration-300">
+                  {setupData.propName || "HOSTFLOW"}
+                </h4>
+              </div>
+
+              {/* Botones de Navegación Lateral (Salir e Idioma) */}
+              <div className="absolute top-20 left-0 right-0 px-4 flex justify-between items-center z-20">
+                <div className="bg-white/20 backdrop-blur-md border border-white/30 px-4 py-1.5 rounded-full text-[9px] font-black text-white uppercase tracking-widest cursor-default">
+                  SALIR
+                </div>
+                <div className="bg-white/20 backdrop-blur-md border border-white/30 px-4 py-1.5 rounded-full text-[9px] font-black text-white uppercase tracking-widest cursor-default">
+                  ES
+                </div>
+              </div>
+
+              {/* Contenedor de Tarjeta Central */}
+              <div className="flex-1 flex flex-col items-center justify-center p-6 mt-4">
+                
+                {/* Tarjeta de Bienvenida */}
+                <div className="bg-white/95 backdrop-blur-md w-full rounded-[2.5rem] p-8 text-center shadow-2xl animate-in zoom-in-95 duration-500">
+                  
+                  {/* Icono de Llave Verde */}
+                  <div className="w-14 h-14 bg-[#E8F5E9] rounded-full mx-auto mb-6 flex items-center justify-center shadow-inner">
+                    <svg className="w-7 h-7 text-[#4CAF50]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                    </svg>
+                  </div>
+
+                  <h3 className="text-3xl font-black text-[#1a1a1a] mb-1 leading-tight tracking-tighter uppercase italic">
+                    Bienvenido
+                  </h3>
+                  
+                  {/* Subtexto Ajustado (No supera el ancho de Bienvenido) */}
+                  <p className="text-slate-400 text-[9px] mb-8 font-bold uppercase tracking-widest max-w-[120px] mx-auto leading-relaxed">
+                    Ingresa tu código de reserva.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    {/* Código de Reserva: Etiqueta Centrada */}
+                    <div className="text-center">
+                      <label className="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-2 block">código de reserva</label>
+                      <div className="w-full bg-slate-50/50 border border-slate-100 rounded-2xl py-4 text-center text-slate-300 font-black tracking-[0.3em] text-sm">
+                        GUEST77
+                      </div>
+                    </div>
+                    
+                    <button className="w-full py-4 bg-[#111] text-white text-[9px] font-black rounded-2xl uppercase tracking-[0.2em]">
+                      ACCEDER A MI ESTANCIA
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Texto Acceso Anfitrión */}
+                <button className="mt-8 text-[9px] font-black text-white/40 uppercase tracking-[0.2em] border-b border-white/10 pb-1">
+                  ACCESO ANFITRIÓN
+                </button>
+              </div>
+
+              {/* Barra inferior */}
+              <div className="h-10 bg-black flex items-center justify-center">
+                 <div className="w-1/3 h-1 bg-white/10 rounded-full"></div>
+              </div>
+            </div>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">Bienvenido a tu libertad.</h1>
-          <p className="text-white/50 text-lg">Estás a un paso de automatizar la comunicación con tus huéspedes.</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 items-center bg-white/[0.02] border border-white/10 p-8 md:p-12 rounded-[3rem] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          <div className="absolute -top-24 -left-24 w-64 h-64 bg-[#C9A84C]/10 rounded-full blur-[100px] pointer-events-none" />
-          <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10 group bg-black shadow-lg">
-            <iframe className="w-full h-full relative z-10" src="https://www.youtube.com/embed/r0GtneZOZzo?si=1VMQ6vF1h3N22-Zg" title="Video" frameBorder="0" allowFullScreen />
-          </div>
-          <div className="flex flex-col justify-center">
-            <h2 className="text-2xl font-bold mb-4 text-white">1. Mira el tutorial de 7 minutos</h2>
-            <p className="text-white/60 mb-2 leading-relaxed">Te explicamos exactamente cómo cargar las fotos de tu propiedad y generar tu enlace mágico.</p>
-            <p className="text-white/60 mb-8 leading-relaxed">Ve a YOUTUBE para que puedas pausar y seguir el Paso a Paso.</p>
-            <button 
-              onClick={onStartCreating} // 🟢 Llama a la función de App.tsx
-              className="w-full py-5 bg-[#C9A84C] text-black font-black text-lg rounded-full hover:bg-[#b5953f] hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-            >
-              CREAR MI PRIMERA PROPIEDAD
-            </button>
+        {/* PANEL DERECHO: FORMULARIO */}
+        <div className="w-full lg:w-1/2 p-8 lg:p-16 overflow-y-auto flex items-center">
+          <div className="max-w-md mx-auto w-full">
+            <h2 className="text-4xl font-black mb-2 italic">Estándar de Oro.</h2>
+            <p className="text-white/40 mb-10 text-sm">Define la identidad visual de tu propiedad.</p>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-[10px] font-black text-[#C9A84C] uppercase mb-2 tracking-widest">Nombre de la Propiedad</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-[#C9A84C] outline-none transition-all placeholder:text-white/5"
+                  placeholder="Ej: Delventto Suits"
+                  onChange={(e) => setSetupData({...setupData, propName: e.target.value})}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-[#C9A84C] uppercase mb-2 tracking-widest">Ciudad</label>
+                  <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-[#C9A84C] outline-none" placeholder="Ciudad" onChange={(e) => setSetupData({...setupData, city: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-[#C9A84C] uppercase mb-2 tracking-widest">Dirección</label>
+                  <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 focus:border-[#C9A84C] outline-none" placeholder="Dirección" onChange={(e) => setSetupData({...setupData, address: e.target.value})} />
+                </div>
+              </div>
+
+              <ImageUploader 
+                label="Imagen Exterior (Fondo)"
+                currentUrl={setupData.bgImage}
+                contextName={`setup-${user?.id}`}
+                onUploadSuccess={(url) => setSetupData({...setupData, bgImage: url})}
+                onDelete={() => setSetupData({...setupData, bgImage: ""})}
+              />
+
+              <div className="pt-6">
+                <button 
+                  onClick={() => onStartCreating(setupData)} 
+                  className="w-full py-5 bg-[#C9A84C] text-black font-black rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg uppercase tracking-widest"
+                >
+                  FINALIZAR Y VER PANEL COMPLETO
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

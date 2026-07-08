@@ -4,41 +4,64 @@ import { supabase } from '../lib/supabaseClient';
 interface OwnerLoginProps {
   onLoginSuccess: (ownerData: any) => void;
   onBack: () => void;
+  defaultEmail?: string;
 }
 
-export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) {
-  const [email, setEmail] = useState('');
+
+
+export default function OwnerLogin({ onLoginSuccess, onBack, defaultEmail = '' }: OwnerLoginProps) {
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+      e.preventDefault();
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      // Consultamos a Supabase si las credenciales son correctas
-      const { data, error: authError } = await supabase
-        .from('owners')
-        .select('*')
-        .eq('email', email.toLowerCase().trim())
-        .eq('master_pin', password)
-        .maybeSingle();
+      try {
+        // Login con Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email: email.toLowerCase().trim(),
+          password
+        });
 
-      if (authError || !data) {
-        throw new Error('Credenciales inválidas o cuenta no encontrada.');
+        if (authError) throw new Error('Credenciales inválidas.');
+
+        // Cargamos el perfil
+        const { data: ownerData, error: ownerError } = await supabase
+          .from('owners')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (ownerError || !ownerData) throw new Error('Perfil no encontrado.');
+
+        onLoginSuccess(ownerData);
+
+      } catch (err: any) {
+        setError(err.message || 'Error de conexión');
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      // Si es exitoso, enviamos los datos a App.tsx
-      onLoginSuccess(data);
-
-    } catch (err: any) {
-      setError(err.message || 'Error de conexión');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const handleForgotPassword = async () => {
+      if (!email) {
+        setError('Ingresa tu email primero.');
+        return;
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/?action=reset-password`,
+      });
+      if (error) {
+        setError('Error al enviar el correo.');
+      } else {
+        setResetSent(true);
+      }
+    };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#F8FAFC] p-4 relative z-50">
@@ -68,7 +91,7 @@ export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) 
           </div>
 
           <div>
-            <label className="block text-[10px] font-black uppercase text-[#64748B] tracking-[0.15em] mb-2 ml-1">Contraseña / PIN</label>
+            <label className="block text-[10px] font-black uppercase text-[#64748B] tracking-[0.15em] mb-2 ml-1">Contraseña</label>
             <input
               type="password"
               value={password}
@@ -93,7 +116,21 @@ export default function OwnerLogin({ onLoginSuccess, onBack }: OwnerLoginProps) 
             {isLoading ? 'VALIDANDO...' : 'VALIDAR ACCESO'}
           </button>
         </form>
-        
+
+        {resetSent ? (
+        <div className="text-center p-4 bg-emerald-50 text-emerald-600 rounded-2xl text-xs font-bold border border-emerald-100">
+          ✅ Revisa tu correo — te enviamos el enlace de recuperación.
+        </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            className="w-full text-[10px] font-black text-slate-300 hover:text-[#0052FF] uppercase tracking-[0.2em] transition-colors py-2"
+          >
+            Olvidé mi contraseña
+          </button>
+        )}
+                
         <div className="mt-6 flex justify-center">
           <button 
             onClick={onBack}

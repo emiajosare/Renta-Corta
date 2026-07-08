@@ -17,43 +17,48 @@ const InitialSecurityConfig: React.FC<InitialSecurityConfigProps> = ({ owner, on
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+      e.preventDefault();
+      setError('');
 
-    // Validaciones
-    if (newPin.length < 6) {
-      setError(language === 'es' ? 'El PIN debe tener al menos 6 caracteres.' : 'PIN must be at least 6 characters.');
-      return;
-    }
-    if (newPin !== confirmPin) {
-      setError(language === 'es' ? 'Los PIN no coinciden.' : 'PINs do not match.');
-      return;
-    }
+      if (newPin.length < 6) {
+        setError(language === 'es' ? 'La contraseña debe tener al menos 6 caracteres.' : 'Password must be at least 6 characters.');
+        return;
+      }
+      if (newPin !== confirmPin) {
+        setError(language === 'es' ? 'Las contraseñas no coinciden.' : 'Passwords do not match.');
+        return;
+      }
 
-    setIsLoading(true);
-    try {
-      // 🟢 ACTUALIZACIÓN CRUCIAL EN SUPABASE
-          const { data, error: updateError } = await supabase
-      .from('owners')
-      .update({ 
-        email: email.trim().toLowerCase(), 
-        master_pin: newPin, 
-        is_first_login: false 
-      })
-      .eq('id', owner.id) // 🎯 ¡ESTO ES LO MÁS IMPORTANTE! Solo actualiza su propia fila.
-      .select()
-      .single();
-      
-      if (updateError) throw updateError;
+      setIsLoading(true);
+      try {
+        // 1. Actualiza la contraseña en Supabase Auth
+        const { error: authError } = await supabase.auth.updateUser({
+          password: newPin
+        });
+        if (authError) throw authError;
 
-      onConfigSuccess(data);
-    } catch (err) {
-      console.error(err);
-      setError(language === 'es' ? 'Error al guardar la configuración.' : 'Error saving configuration.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        // 2. Actualiza el perfil en tabla owners
+        const { data, error: updateError } = await supabase
+          .from('owners')
+          .update({
+            email: email.trim().toLowerCase(),
+            is_first_login: false,
+            master_pin: null  // ya no lo necesitamos
+          })
+          .eq('id', owner.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        onConfigSuccess(data);
+      } catch (err) {
+        console.error(err);
+        setError(language === 'es' ? 'Error al guardar.' : 'Error saving.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6">

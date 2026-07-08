@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 
 interface LandingPageProps {
   onLoginSuccess: (ownerData: any) => void;
+  autoOpenModal?: boolean;  // ← prop nueva
 }
 
 // 1. LOGO NATIVO
@@ -30,58 +31,77 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClo
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage(null);
+      e.preventDefault();
+      setLoading(true);
+      setMessage(null);
 
-    try {
-      if (isLogin) {
-        // LÓGICA DE LOGIN REAL
-        const { data, error } = await supabase
-          .from('owners')
-          .select('*')
-          .eq('email', email.toLowerCase().trim())
-          .eq('master_pin', password)
-          .maybeSingle();
+      try {
+        if (isLogin) {
+          // LOGIN con Supabase Auth
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: email.toLowerCase().trim(),
+            password
+          });
 
-        if (error || !data) throw new Error('Credenciales inválidas o cuenta no encontrada.');
-        
-        setMessage({ type: 'success', text: '¡Acceso concedido!' });
-        setTimeout(() => onLoginSuccess(data), 1000);
+          if (authError) throw new Error('Credenciales inválidas.');
 
-      } else {
-        // LÓGICA DE REGISTRO (ESCASEZ REAL: MAX 20 CUPOS)
-        const { count } = await supabase.from('owners').select('*', { count: 'exact', head: true });
-        if (count && count >= 20) throw new Error('Los 20 cupos fundadores se han agotado.');
+          // Cargamos el perfil del owner
+          const { data: ownerData, error: ownerError } = await supabase
+            .from('owners')
+            .select('*')
+            .eq('id', authData.user.id)
+            .single();
 
-        // Verificamos si el email ya existe
-        const { data: existingUser } = await supabase.from('owners').select('id').eq('email', email.toLowerCase().trim()).maybeSingle();
-        if (existingUser) throw new Error('Este correo ya está registrado. Inicia sesión.');
+          if (ownerError || !ownerData) throw new Error('Perfil no encontrado.');
 
-        // Creamos el usuario
-        const newToken = `LUX-${Math.random().toString(36).toUpperCase().substring(2, 6)}`;
-        const { data, error } = await supabase.from('owners').insert([{
-          name: email.split('@')[0], // Nombre temporal basado en el email
-          email: email.toLowerCase().trim(),
-          master_pin: password, // Usamos la contraseña como su PIN maestro
-          token: newToken,
-          is_first_login: true,
-          role: 'owner',
-          is_founder: true
-        }]).select().single();
+          setMessage({ type: 'success', text: '¡Acceso concedido!' });
+          setTimeout(() => onLoginSuccess(ownerData), 800);
 
-        if (error) throw error;
+        } else {
+          // REGISTRO con Supabase Auth
+          const { count } = await supabase
+            .from('owners')
+            .select('*', { count: 'exact', head: true });
 
-        setMessage({ type: 'success', text: '¡Cupo reclamado con éxito!' });
-        setTimeout(() => onLoginSuccess(data), 1500);
+          if (count && count >= 20) throw new Error('Los 20 cupos fundadores se han agotado.');
+
+          // 1. Crear usuario en Supabase Auth
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: email.toLowerCase().trim(),
+            password
+          });
+
+          if (authError) throw new Error(authError.message);
+          if (!authData.user) throw new Error('Error al crear el usuario.');
+
+          // 2. Crear perfil en tabla owners con el mismo UUID
+          const newToken = `LUX-${Math.random().toString(36).toUpperCase().substring(2, 6)}`;
+          const { data: ownerData, error: ownerError } = await supabase
+            .from('owners')
+            .insert([{
+              id: authData.user.id,  // ← UUID de Supabase Auth
+              name: email.split('@')[0],
+              email: email.toLowerCase().trim(),
+              token: newToken,
+              is_first_login: true,
+              role: 'owner',
+              is_founder: true,
+              subscription_status: 'inactive'
+            }])
+            .select()
+            .single();
+
+          if (ownerError) throw new Error(ownerError.message);
+
+          setMessage({ type: 'success', text: '¡Cupo reclamado!' });
+          setTimeout(() => onLoginSuccess(ownerData), 800);
+        }
+      } catch (error: any) {
+        setMessage({ type: 'error', text: error.message || 'Error al conectar.' });
+      } finally {
+        setLoading(false);
       }
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Error al conectar con el servidor.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    };
   if (!isOpen) return null;
 
   return (
@@ -129,11 +149,10 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClo
 };
 
 // 3. LA LANDING PAGE PRINCIPAL
-export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
-  const [showAuth, setShowAuth] = useState(false);
-
+export default function LandingPage({ onLoginSuccess, autoOpenModal = false }: LandingPageProps) {
+  const [showAuth, setShowAuth] = useState(autoOpenModal); // ← abre si viene de signup
   // 🟢 AUTO-ABRIR MODAL SI VIENE DE MARKETING
-  React.useEffect(() => {
+ /* React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'signup') {
       setShowAuth(true); // Abre el modal mágicamente
@@ -141,7 +160,7 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
       // Limpiamos la URL para que quede bonita y profesional (opcional pero recomendado)
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, []);*/
 
   return (
     <div className="min-h-screen bg-[#080808] text-white selection:bg-[#C9A84C] selection:text-black font-sans scroll-smooth">
@@ -169,7 +188,7 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
               Automatiza check-in, WiFi, reglas y guías en un solo enlace profesional para tus huéspedes.
             </p>
             <button onClick={() => setShowAuth(true)} className="w-full sm:w-auto px-10 py-5 bg-[#C9A84C] text-black font-black rounded-full mx-auto flex items-center justify-center hover:bg-[#b5953f] hover:scale-105 transition-all shadow-[0_0_30px_rgba(201,168,76,0.3)]">
-              RECLAMAR CUPO GRATUITO
+              RECLAMAR CUPO FUNDADOR
             </button>
           </div>
         </section>
@@ -186,7 +205,7 @@ export default function LandingPage({ onLoginSuccess }: LandingPageProps) {
                 </span>
                 <h3 className="text-2xl font-bold mb-2 text-white">Plan Fundador</h3>
                 <div className="flex items-baseline justify-center gap-1 mb-8">
-                  <span className="text-5xl font-bold text-white">$0</span>
+                  <span className="text-5xl font-bold text-white">$7</span>
                 </div>
                 <button onClick={() => setShowAuth(true)} className="w-full py-4 bg-[#C9A84C] text-black rounded-full font-bold transition-all hover:bg-[#b5953f]">
                   Reclamar Cupo Fundador
