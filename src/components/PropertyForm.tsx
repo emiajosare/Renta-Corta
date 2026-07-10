@@ -3,7 +3,7 @@ import type { PropertySettings, AccessControl, Owner, Language } from '../types'
 import { STORAGE_KEYS } from '../constants';
 import { translations } from '../translations';
 import { getNearbyPlaces } from '../services/geminiService';
-import { getCoordinates } from '../services/geocodingService'; // Cambiado a nombre estándar
+import { getCoordinates } from '../services/geocodingService'; 
 import { supabase } from '../lib/supabaseClient';
 import ImageUploader from './ImageUploader';
 
@@ -26,6 +26,9 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   
+  // 🟢 ESTADOS PARA EL ASISTENTE DE VIDEO CONTEXTUAL NATIVO
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  
   const [isBookingUnlocked, setIsBookingUnlocked] = useState(false);
   const [allAccessRecords, setAllAccessRecords] = useState<AccessControl[]>([]);
   
@@ -46,9 +49,18 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     doorCodeDuration: undefined
   });
 
+  // 🟢 MAPEO DINÁMICO DE VIDEOS (Mutan automáticamente según la pestaña real activa)
+  const videoMapping: Record<Tab, { title: string; src: string }> = {
+    PROPIEDAD: { title: "Configuración de Inmueble y WiFi", src: "/tutorial_config.mp4" },
+    MULTIMEDIA: { title: "Galería Multimedia Exclusiva", src: "/tutorial_activos.mp4" },
+    GUIAS: { title: "Manuales de Confort y Reglas", src: "/tutorial_reglas.mp4" },
+    RESERVAS: { title: "Gestión de Check-Ins y Reservas", src: "/tutorial_reservas.mp4" }
+  };
+
+  const currentVideo = videoMapping[activeTab];
+
   // --- LÓGICA DEL LINK DE INVITACIÓN ---
-  // Usamos formData.id porque es el que se actualiza con el UUID real de Supabase al guardar
-  const shortId = formData.id?.split('-')[0] || 'access'; // Toma solo el primer bloque del UUID
+  const shortId = formData.id?.split('-')[0] || 'access'; 
   const invitationLink = `${window.location.origin}/stay/${shortId}`;
 
   const handleCopyLink = () => {
@@ -58,15 +70,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
   // --- CARGA INICIAL DESDE NUBE (Prioridad Supabase) ---
   useEffect(() => {
-   const loadInitialData = async () => {
-    // 🟢 VALIDACIÓN: Solo buscamos si el ID es un UUID real (no empieza con 'p')
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id);
-    
-    if (!isUUID) {
-      console.log("ID temporal detectado, saltando consulta a Supabase");
-      return; 
-    }
-      // 1. Cargar registros de acceso desde Supabase
+    const loadInitialData = async () => {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id);
+      
+      if (!isUUID) {
+        console.log("ID temporal detectado, saltando consulta a Supabase");
+        return; 
+      }
+      
       const { data: records, error } = await supabase
         .from('access_control')
         .select('*')
@@ -89,8 +100,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         if (formattedRecords.length > 0) setIsBookingUnlocked(true);
       }
 
-      // 2. Cargar Avatar del Dueño
-      // 🟢 CARGA REAL DEL AVATAR DESDE SUPABASE
       const { data: ownerData } = await supabase
         .from('owners')
         .select('avatar_url')
@@ -105,20 +114,11 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     loadInitialData();
   }, [property.id, property.ownerId]);
 
-  
   // --- PERSISTENCIA EN SUPABASE ---
   const saveToSupabase = async (propData: PropertySettings, guestData?: AccessControl) => {
     try {
-      // VALIDACIÓN DE SEGURIDAD PARA UUID
-      // Si el ownerId es "o1" (mock data), Supabase lo rechazará. 
-      // Debes asegurarte de estar logueado con un UUID real.
       const isUUID = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       
-      if (!isUUID(propData.ownerId)) {
-        console.warn("Owner ID no es un UUID válido. Usando ID de respaldo para pruebas.");
-        // Para evitar el error 400 en localhost mientras pruebas:
-        // propData.ownerId = "un-uuid-valido-de-tu-tabla-owners";
-      }
       const propertyPayload: any = {
         owner_id: propData.ownerId,
         building_name: propData.buildingName,
@@ -141,22 +141,19 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         ai_recommendations: propData.aiRecommendations
       };
 
-      // 🟢 SI EL ID ES UN UUID (Propiedad existente), LO INCLUIMOS PARA QUE SE ACTUALICE
-      // SI NO, LO DEJAMOS FUERA PARA QUE SUPABASE CREE UNO NUEVO
       if (isUUID(propData.id)) {
         propertyPayload.id = propData.id;
       }
 
       const { data: savedProp, error: propError } = await supabase
         .from('properties')
-        .upsert(propertyPayload, { onConflict: 'id' }) // Usamos 'id' como conflicto es más estándar
+        .upsert(propertyPayload, { onConflict: 'id' }) 
         .select()
         .single();
 
       if (propError) throw propError;
 
-      // Capturamos el ID real que nos dio Supabase
-        const realPropertyId = savedProp.id;
+      const realPropertyId = savedProp.id;
 
       if (guestData && guestData.guestName.trim() !== '' && guestData.guestName !== 'Sin Nombre') {
         const guestPayload = {
@@ -178,25 +175,20 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         if (guestError) throw guestError;
       }
 
-      // 🟢 RETORNAMOS EL ID: Ahora handleSubmit sabrá quién es la propiedad
-       return realPropertyId;
+      return realPropertyId;
+    } catch (err) {
+      console.error("Error en sincronización:", err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      alert(`Error de base de datos: ${errorMessage}`);
+      return null;
+    }
+  };
 
-      } catch (err) {
-        console.error("Error en sincronización:", err);
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        alert(`Error de base de datos: ${errorMessage}`);
-        return null; // Si falla, retornamos null
-      }
-
-    };
-
-  // --- FUNCIÓN ÚNICA DE EXPORTACIÓN (TAREA 2 FINALIZADA) ---
+  // --- FUNCIÓN ÚNICA DE EXPORTACIÓN ---
   const handleExportHistory = async () => {
     setIsSaving(true);
     try {
-
       const targetId = formData.id;
-
       const { data: history, error } = await supabase
         .from('access_control')
         .select('*')
@@ -240,7 +232,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
       .sort((a, b) => new Date(a.checkIn!).getTime() - new Date(b.checkIn!).getTime());
   }, [allAccessRecords]);
 
-  // Determina si una reserva venció (1 día después del checkout)
   const isExpired = (guest: AccessControl) => {
     if (!guest.checkOut) return false;
     const checkOutDate = new Date(`${guest.checkOut}T23:59:59`);
@@ -265,7 +256,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
       : `${baseClass} border-slate-50 text-slate-400 bg-white hover:border-slate-200`;
   };
 
-  // --- ELIMINAR HUÉSPED VENCIDO ---
   const handleDeleteGuest = async (guestId: string, guestName: string) => {
     const confirmed = window.confirm(`¿Eliminar la reserva de ${guestName}?`);
     if (!confirmed) return;
@@ -295,7 +285,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 🟢 1. VALIDACIÓN DE CAMPOS OBLIGATORIOS (Diseño y Control)
     const newErrors: string[] = [];
     const errs = t.owner.errors as any;
     
@@ -313,13 +302,10 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     }
     
     setPropertyErrors([]);
-    setIsSaving(true); // Usamos tu estado original
+    setIsSaving(true); 
 
     try {
       let currentPropData = { ...formData };
-      
-      // 🕵️ COMPROBACIÓN INTELIGENTE DE DIRECCIÓN
-      // Comparamos contra 'property' (tus datos iniciales) para ver si hubo cambios reales
       const addressChanged = !property.id || 
                             currentPropData.address !== property.address || 
                             currentPropData.city !== property.city;
@@ -328,33 +314,26 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
       if (needsAIUpdate) {
         console.log("🤖 Generando/Actualizando Guía Turística Persistente...");
-        
-        // 1. Obtenemos Coordenadas (Para el mapa)
         const coords = await getCoordinates(currentPropData.address, currentPropData.city);
-        
         if (coords) {
           currentPropData.location_lat = Number(coords.lat);
           currentPropData.location_lng = Number(coords.lng);
         }
 
-        // 2. Obtenemos Recomendaciones Reales (El nuevo motor validado)
         const aiRecs = await getNearbyPlaces(currentPropData.city, currentPropData.address);
         if (aiRecs) {
           currentPropData.aiRecommendations = aiRecs;
-          currentPropData.nearbyPlaces = aiRecs; // 👈 AÑADE ESTA LÍNEA AQUÍ
-  
+          currentPropData.nearbyPlaces = aiRecs; 
           console.log("✅ Recomendaciones inyectadas en el objeto de la propiedad");
         }
       }
 
-      // 🟢 3. DEFINICIÓN DE finalAccess (Sincronización)
       const finalAccess: AccessControl = { 
         ...accessData, 
         propertyId: property.id,
         bookingCode: accessData.bookingCode.trim().toUpperCase()
       };
 
-      // 🟢 4. VALIDACIÓN DE FECHAS (Tu lógica original de Reservas)
       if (finalAccess.guestName.trim() !== '' && finalAccess.guestName !== 'Sin Nombre') {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -385,7 +364,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
       setDateErrors({}); 
 
-      // 🟢 5. ACTUALIZACIÓN DE AVATAR DEL DUEÑO
       if (ownerAvatar) {
         await supabase
           .from('owners')
@@ -393,7 +371,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
           .eq('id', formData.ownerId);
       }
 
-      // 🟢 6. GUARDADO EN SUPABASE (Usando tu función saveToSupabase)
       const realId = await saveToSupabase(currentPropData, finalAccess);
       
       if (realId) {
@@ -411,13 +388,11 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         }
       }
 
-      // 🟢 7. ÉXITO Y NAVEGACIÓN AUTOMÁTICA
       setSaveSuccess(true);
       onSave(currentPropData, finalAccess, ownerAvatar);
 
       setTimeout(() => {
         setSaveSuccess(false);
-        // Navegación automática entre pestañas para flujo Luxury
         if (activeTab === 'PROPIEDAD') setActiveTab('MULTIMEDIA');
         else if (activeTab === 'MULTIMEDIA') setActiveTab('GUIAS');
         else if (activeTab === 'GUIAS') setActiveTab('RESERVAS');
@@ -429,8 +404,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
       let errorMessage = "Error desconocido";
       if (err instanceof Error) {
         errorMessage = err.message;
-      } else if (typeof err === 'object' && err !== null) {
-        errorMessage = (err as any).message || JSON.stringify(err);
       }
       alert(`Error de base de datos: ${errorMessage}`);
     } finally {
@@ -438,34 +411,47 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
     }
   };
 
-  // Clases CSS consistentes
   const inputClass = "w-full px-6 py-4 rounded-2xl border-[1.5px] border-[#CBD5E1] bg-[#F8FAFC] text-[#212121] text-base focus:bg-white focus:border-[#0052FF] outline-none transition-all font-medium";
   const labelClass = "block text-[10px] font-black uppercase text-[#64748B] tracking-[0.15em] mb-2.5 ml-1";
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-6 animate-in fade-in duration-700">
-      {/* HEADER DINÁMICO */}
+      
+      {/* HEADER PRINCIPAL DE ACCIONES */}
       <div className="flex justify-between items-center mb-10">
         <button onClick={onBack} className="flex items-center space-x-2 text-[#64748B] hover:text-[#0052FF] transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
           <span className="text-[10px] font-black uppercase tracking-widest">{t.common.back}</span>
         </button>
         
+        {/* 🟢 ACCIONES EN HEAD DE PANTALLA: Aquí incluimos el botón contextual premium de ayuda */}
         <div className="flex items-center space-x-4">
+          
+          {/* BOTÓN CONTEXTUAL DE VIDEO (Sabe exactamente qué pestaña estás editando) */}
+          <button 
+            type="button"
+            onClick={() => setShowVideoModal(true)}
+            className="flex items-center gap-2 px-5 py-3.5 bg-[#C9A84C]/10 border border-[#C9A84C]/40 rounded-2xl text-[#C9A84C] text-[10px] font-black uppercase tracking-widest hover:bg-[#C9A84C]/20 transition-all hover:scale-[1.02] active:scale-95 shadow-[0_0_20px_rgba(201,168,76,0.1)] group"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse group-hover:bg-emerald-400"></span>
+            <span>▶ Guía de {activeTab}</span>
+          </button>
+
           {saveSuccess && <span className="text-emerald-600 font-black text-[10px] uppercase tracking-widest animate-pulse">{t.common.saved}</span>}
+          
           <button 
             onClick={handleSubmit} 
             disabled={isSaving}
             className={`w-full sm:w-auto bg-[#0052FF] text-white px-8 sm:px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-blue-500/10 transition-all ${isSaving ? 'opacity-40 cursor-wait' : 'hover:bg-blue-700 active:scale-95'}`}
           >
-            {/* Lógica de texto dinámica */}
             {isSaving ? '...' : (activeTab === 'RESERVAS' ? t.common.finish : t.common.next)}
           </button>
         </div>
       </div>
 
       <div className="bg-white rounded-[3.5rem] shadow-2xl border border-slate-50 overflow-hidden">
-        {/* NAVEGACIÓN DE PESTAÑAS */}
+        
+        {/* NAVEGACIÓN DE PESTAÑAS REALES DE LA PLATAFORMA */}
         <nav className="flex border-b border-slate-100 overflow-x-auto no-scrollbar bg-slate-50/50">
           {[
             { id: 'PROPIEDAD', label: t.owner.tabs.config },
@@ -475,7 +461,11 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as Tab)}
+              type="button"
+              onClick={() => {
+                setActiveTab(tab.id as Tab);
+                setDateErrors({}); // Limpiamos errores al cambiar de contexto
+              }}
               className={`px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] border-b-4 transition-all ${
                 activeTab === tab.id ? 'border-[#0052FF] text-[#0052FF] bg-white' : 'border-transparent text-slate-300 hover:text-slate-500'
               }`}
@@ -486,73 +476,56 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
         </nav>
 
         <form className="p-12" onSubmit={handleSubmit}>
-        {activeTab === 'PROPIEDAD' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
-            {/* 🟢 2. SECCIÓN PARA VISUALIZAR LOS ERRORES DE VALIDACIÓN */}
+          
+          {/* --- BLOQUE: CONFIGURACIÓN DE PROPIEDAD --- */}
+          {activeTab === 'PROPIEDAD' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in duration-500">
               {propertyErrors.length > 0 && (
                 <div className="md:col-span-2 bg-rose-50 border border-rose-100 p-4 rounded-2xl mb-2 animate-in fade-in slide-in-from-top-2">
                   {propertyErrors.map((err, i) => (
                     <p key={i} className="text-rose-500 text-[10px] font-black uppercase tracking-wide flex items-center mb-1 last:mb-0">
-                      {/* Icono de alerta */}
                       <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       {err}
                     </p>
                   ))}
                 </div>
               )}
-            <div className="md:col-span-2">
-              <label className={labelClass}>{t.owner.form.buildingName}</label>
-              <input name="buildingName" value={formData.buildingName} onChange={handleChange} className={inputClass} />
-            </div>
-            <div className="md:col-span-2">
-              <label className={labelClass}>{t.owner.form.address}</label>
-              <input name="address" value={formData.address} onChange={handleChange} className={inputClass} />
-            </div>
-            <div><label className={labelClass}>{t.owner.form.hostName}</label><input name="hostName" value={formData.hostName} onChange={handleChange} className={inputClass} /></div>
-            <div><label className={labelClass}>{t.owner.form.city}</label><input name="city" value={formData.city} onChange={handleChange} className={inputClass} /></div>
-            {/* 🟢 NUEVO: Campo de WhatsApp de Soporte */}
-            <div className="md:col-span-2">
-              <label className={labelClass}>WhatsApp de Soporte (Ej: 573001234567)</label>
-              <input 
-                name="whatsappContact" 
-                value={formData.whatsappContact} 
-                onChange={handleChange} 
-                className={inputClass} 
-                placeholder="Código de país + número sin espacios ni +"
-              />
-            </div>
-            <div className="md:col-span-2 grid grid-cols-3 gap-6">
-              <div><label className={labelClass}>{t.owner.form.capacity}</label><input name="capacity" value={formData.capacity} onChange={handleChange} className={inputClass} /></div>
-              <div><label className={labelClass}>{t.owner.form.rooms}</label><input type="number" name="rooms" value={formData.rooms} onChange={handleChange} className={inputClass} /></div>
-              <div><label className={labelClass}>{t.owner.form.bathrooms}</label><input type="number" name="bathrooms" value={formData.bathrooms} onChange={handleChange} className={inputClass} /></div>
-            </div>
+              <div className="md:col-span-2">
+                <label className={labelClass}>{t.owner.form.buildingName}</label>
+                <input name="buildingName" value={formData.buildingName} onChange={handleChange} className={inputClass} />
+              </div>
+              <div className="md:col-span-2">
+                <label className={labelClass}>{t.owner.form.address}</label>
+                <input name="address" value={formData.address} onChange={handleChange} className={inputClass} />
+              </div>
+              <div><label className={labelClass}>{t.owner.form.hostName}</label><input name="hostName" value={formData.hostName} onChange={handleChange} className={inputClass} /></div>
+              <div><label className={labelClass}>{t.owner.form.city}</label><input name="city" value={formData.city} onChange={handleChange} className={inputClass} /></div>
+              
+              <div className="md:col-span-2">
+                <label className={labelClass}>WhatsApp de Soporte (Ej: 573001234567)</label>
+                <input name="whatsappContact" value={formData.whatsappContact} onChange={handleChange} className={inputClass} placeholder="Código de país + número sin espacios ni +" />
+              </div>
+              
+              <div className="md:col-span-2 grid grid-cols-3 gap-6">
+                <div><label className={labelClass}>{t.owner.form.capacity}</label><input name="capacity" value={formData.capacity} onChange={handleChange} className={inputClass} /></div>
+                <div><label className={labelClass}>{t.owner.form.rooms}</label><input type="number" name="rooms" value={formData.rooms} onChange={handleChange} className={inputClass} /></div>
+                <div><label className={labelClass}>{t.owner.form.bathrooms}</label><input type="number" name="bathrooms" value={formData.bathrooms} onChange={handleChange} className={inputClass} /></div>
+              </div>
 
-            {/* CAMPOS DE WIFI: Asegúrate de que estén aquí dentro */}
-            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-100 mt-4">
-              <div>
-                <label className={labelClass}>{t.owner.form.wifiSSID}</label>
-                <input 
-                  name="wifiSSID" 
-                  value={formData.wifiSSID} 
-                  onChange={handleChange} 
-                  className={inputClass} 
-                  placeholder="Nombre de la red" 
-                />
-              </div>
-              <div>
-                <label className={labelClass}>{t.owner.form.wifiPass}</label>
-                <input 
-                  name="wifiPass" 
-                  value={formData.wifiPass} 
-                  onChange={handleChange} 
-                  className={inputClass + " font-mono"} 
-                  placeholder="Contraseña" 
-                />
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-100 mt-4">
+                <div>
+                  <label className={labelClass}>{t.owner.form.wifiSSID}</label>
+                  <input name="wifiSSID" value={formData.wifiSSID} onChange={handleChange} className={inputClass} placeholder="Nombre de la red" />
+                </div>
+                <div>
+                  <label className={labelClass}>{t.owner.form.wifiPass}</label>
+                  <input name="wifiPass" value={formData.wifiPass} onChange={handleChange} className={inputClass + " font-mono"} placeholder="Contraseña" />
+                </div>
               </div>
             </div>
-          </div>
           )}
 
+          {/* --- BLOQUE: RESERVAS / CHECK-INS --- */}
           {activeTab === 'RESERVAS' && (
             <div className="space-y-10 animate-in fade-in duration-500">
               <div className="flex items-center space-x-4 overflow-x-auto pb-4 no-scrollbar">
@@ -594,13 +567,13 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                 <div className="relative">
                   <label className={labelClass}>{t.owner.form.checkIn}</label>
                   <input type="date" name="checkIn" value={accessData.checkIn} onChange={handleAccessChange} className={`${inputClass} ${dateErrors.checkIn ? 'border-rose-500 bg-rose-50' : ''}`} />
-                  {dateErrors.checkIn && <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in slide-in-from-top-1">{dateErrors.checkIn}</p>}
+                  {dateErrors.checkIn && <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in">{dateErrors.checkIn}</p>}
                 </div>
 
                 <div className="relative">
                   <label className={labelClass}>{t.owner.form.checkOut}</label>
                   <input type="date" name="checkOut" value={accessData.checkOut} onChange={handleAccessChange} className={`${inputClass} ${dateErrors.checkOut ? 'border-rose-500 bg-rose-50' : ''}`} />
-                  {dateErrors.checkOut && <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in slide-in-from-top-1">{dateErrors.checkOut}</p>}
+                  {dateErrors.checkOut && <p className="text-rose-500 text-[9px] font-black uppercase mt-2 ml-1 animate-in fade-in">{dateErrors.checkOut}</p>}
                 </div>
 
                 <div>
@@ -613,45 +586,41 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                   <input name="doorCode" value={accessData.doorCode} onChange={handleAccessChange} className={inputClass} />
                 </div>
 
-                {/* 🟢 SECCIÓN: DURACIÓN + LINK DE INVITACIÓN (GRID 2 COLUMNAS) */}
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  
-                  {/* COLUMNA IZQUIERDA: DURACIÓN DEL CÓDIGO */}
                   <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
                     <label className={labelClass}>⏱️ Duración del Código Puerta (días)</label>
-                  <div className="flex items-center gap-4 mt-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={
-                        accessData.checkIn && accessData.checkOut
-                          ? Math.max(1, Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
-                          : 365
-                      }
-                      value={accessData.doorCodeDuration || ''}
-                      onChange={(e) => setAccessData(prev => ({
-                        ...prev,
-                        doorCodeDuration: e.target.value ? parseInt(e.target.value) : undefined
-                      }))}
-                      placeholder="Días"
-                      className={`${inputClass} max-w-[140px] text-center font-mono`}
-                    />
-                    <div className="flex-1">
-                      <p className="text-[11px] font-bold text-slate-500">
-                        {accessData.doorCodeDuration
-                          ? `El código expira después de ${accessData.doorCodeDuration} día${accessData.doorCodeDuration > 1 ? 's' : ''} desde el check-in`
-                          : 'Sin configurar → expira a los 30 minutos del check-in'}
-                      </p>
-                      {accessData.checkIn && accessData.checkOut && (
-                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">
-                          Máximo: {Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24))} días (hasta el checkout)
+                    <div className="flex items-center gap-4 mt-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={
+                          accessData.checkIn && accessData.checkOut
+                            ? Math.max(1, Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
+                            : 365
+                        }
+                        value={accessData.doorCodeDuration || ''}
+                        onChange={(e) => setAccessData(prev => ({
+                          ...prev,
+                          doorCodeDuration: e.target.value ? parseInt(e.target.value) : undefined
+                        }))}
+                        placeholder="Días"
+                        className={`${inputClass} max-w-[140px] text-center font-mono`}
+                      />
+                      <div className="flex-1">
+                        <p className="text-[11px] font-bold text-slate-500">
+                          {accessData.doorCodeDuration
+                            ? `El código expira después de ${accessData.doorCodeDuration} día${accessData.doorCodeDuration > 1 ? 's' : ''} desde el check-in`
+                            : 'Sin configurar → expira a los 30 minutos del check-in'}
                         </p>
-                      )}
+                        {accessData.checkIn && accessData.checkOut && (
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">
+                            Máximo: {Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24))} días (hasta el checkout)
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  </div>
 
-                  {/* COLUMNA DERECHA: LINK DE INVITACIÓN (DISEÑO REFINADO) */}
                   <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-center">
                     <label className="block text-[10px] font-black uppercase text-[#C9A84C] tracking-[0.2em] mb-3 ml-1">
                       Enlace de Invitación Deluxe
@@ -666,7 +635,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                         className="p-3 bg-black text-[#C9A84C] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                         </svg>
                       </button>
                     </div>
@@ -678,7 +647,6 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
               </div>
 
               <div className="pt-8 border-t border-slate-100 flex justify-between items-center">
-                {/* 🟢 BOTÓN INTELIGENTE: Visible pero bloqueado para Fundadores */}
                 <button 
                   type="button" 
                   onClick={isFounder ? undefined : handleExportHistory} 
@@ -699,7 +667,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
             </div>
           )}
 
-          {/* LAS PESTAÑAS MULTIMEDIA Y GUIAS SE MANTIENEN IGUAL QUE TU LÓGICA ORIGINAL */}
+          {/* --- BLOQUE: MULTIMEDIA --- */}
           {activeTab === 'MULTIMEDIA' && (
              <div className="space-y-12 animate-in fade-in duration-500">
                 <ImageUploader 
@@ -714,16 +682,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                   <ImageUploader 
                     label={t.owner.form.welcomeLabel} 
                     currentUrl={formData.welcomeImageUrl} 
-                    contextName='welcome-uploader' // Corregí un typo aquí ('welcomn' -> 'welcome')
-                    // Usamos 'prev' para asegurar que no se mezclen los estados
+                    contextName='welcome-uploader' 
                     onUploadSuccess={(url) => setFormData(prev => ({ ...prev, welcomeImageUrl: url }))} 
                     onDelete={() => setFormData(prev => ({ ...prev, welcomeImageUrl: ' ' }))} 
                   />
-                   <ImageUploader 
+                  <ImageUploader 
                     label={t.owner.form.dashboardLabel} 
                     currentUrl={formData.stayImageUrl} 
                     contextName='stay-uploader'
-                    // Usamos 'prev' aquí también para aislar esta actualización
                     onUploadSuccess={(url) => setFormData(prev => ({ ...prev, stayImageUrl: url }))} 
                     onDelete={() => setFormData(prev => ({ ...prev, stayImageUrl: ' ' }))} 
                   />
@@ -731,6 +697,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
              </div>
           )}
 
+          {/* --- BLOQUE: GUIAS Y TEXTOS OPERATIVOS --- */}
           {activeTab === 'GUIAS' && (
             <div className="space-y-8 animate-in fade-in duration-500">
                <textarea name="rules" value={formData.rules} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.rules} />
@@ -740,6 +707,40 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
           )}
         </form>
       </div>
+
+      {/* 🟢 MODAL NATIVO GLOBAL DEL VIDEO ASISTENTE CON KEY DE REFRESCO DE VISTA */}
+      {showVideoModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-[#111] border border-white/10 p-6 rounded-[2.5rem] max-w-2xl w-full relative shadow-[0_0_50px_rgba(201,168,76,0.2)] animate-in zoom-in-95 duration-300">
+            
+            <button 
+              type="button" 
+              onClick={() => setShowVideoModal(false)}
+              className="absolute top-4 right-4 text-white/40 hover:text-white text-[10px] font-black uppercase tracking-widest bg-white/5 px-4 py-1.5 rounded-full transition-colors"
+            >
+              Cerrar [X]
+            </button>
+            
+            <h3 className="text-xl font-bold mb-4 text-[#C9A84C] italic font-serif">
+              {currentVideo.title}
+            </h3>
+            
+            <div className="relative aspect-video rounded-2xl overflow-hidden border border-white/10 bg-black shadow-inner">
+              <video 
+                key={currentVideo.src} // ⚡ CLAVE DE INGENIERÍA: Fuerza a React a refrescar e instanciar el nuevo archivo de video al cambiar de pestaña
+                className="w-full h-full object-cover"
+                src={currentVideo.src} 
+                controls
+                autoPlay
+              />
+            </div>
+            
+            <p className="text-white/40 text-xs mt-4 text-center">
+              Estás viendo el video de soporte operativo para el módulo actual de tu panel de control.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
