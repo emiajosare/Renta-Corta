@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ImageUploader from './ImageUploader';
+import type { Owner, NewPropertyInitialData } from '../types';
 
 // Definición local de Logo para mantener consistencia visual sin errores de tipos
 const Logo = ({ imageClass = "w-10 h-10", showText = true, containerClass = "flex items-center gap-3" }) => (
@@ -9,7 +10,13 @@ const Logo = ({ imageClass = "w-10 h-10", showText = true, containerClass = "fle
   </div>
 );
 
-export default function HostDashboard({ user, onLogout, onStartCreating }: any) {
+interface HostDashboardProps {
+  user: Owner | null;
+  onLogout: () => void;
+  onStartCreating: (data: NewPropertyInitialData) => void;
+}
+
+export default function HostDashboard({ user, onLogout, onStartCreating }: HostDashboardProps) {
   // 🟢 ESTADOS DE OPERACIÓN Y MODAL DE VIDEO
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [setupData, setSetupData] = useState({

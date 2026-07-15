@@ -99,7 +99,6 @@ const GuestLogin: React.FC<GuestLoginProps> = ({
       console.error("Login error:", err);
       setError(language === 'es' ? 'Error de conexión' : 'Connection error');
     } finally {
-      setIsLoading(false);
     }
   };
 
@@ -111,7 +110,7 @@ const GuestLogin: React.FC<GuestLoginProps> = ({
         {/* 🖼️ CAPA 1: IMAGEN DE FONDO DINÁMICA (Ocupa todo el espacio bajo la barra) */}
         <div className="absolute inset-0 z-0">
           <img 
-            src={property?.stayImageUrl || "https://images.unsplash.com/photo-1549517045-bc93de075e53?auto=format&fit=crop&w=1600&q=80"} 
+            src={property?.stayImageUrl || "https://unsplash.com/photos/modern-luxury-house-with-swimming-pool-and-lush-green-landscaping-7s8ab4twHcI"} 
             className="w-full h-full object-cover transition-all duration-1000"
             alt="Welcome Background"
           />

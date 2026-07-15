@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import type { PropertySettings, AccessControl, Language } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { PropertySettings, AccessControl, Language, NearbyPlace } from '../types';
 import { translations } from '../translations';
 import { supabase } from '../lib/supabaseClient';
 
@@ -36,7 +36,7 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     ? access.doorCodeDuration * 24 * 60 * 60  // días a segundos
     : 1800; // 30 minutos por defecto
 
-  const calculateTimeLeft = () => {
+  const calculateTimeLeft = useCallback(() => {
     if (!access.checkinStatus || !access.issuedAt) return TIMER_DURATION_SEC;
     const startTime = isNaN(Number(access.issuedAt))
       ? new Date(access.issuedAt).getTime()
@@ -44,14 +44,14 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     if (isNaN(startTime)) return TIMER_DURATION_SEC;
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     return Math.max(0, TIMER_DURATION_SEC - elapsed);
-  };
+  }, [access.checkinStatus, access.issuedAt, TIMER_DURATION_SEC]);
 
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
   const [timerExpired, setTimerExpired] = useState(timeLeft <= 0);
 
   // ✅ CORREGIDO: Un solo useEffect para el timer (antes había dos iguales)
   useEffect(() => {
-    if (!access.checkinStatus || timeLeft <= 0) return;
+    if (!access.checkinStatus || calculateTimeLeft() <= 0) return;
     const interval = setInterval(() => {
       const newTime = calculateTimeLeft();
       setTimeLeft(newTime);
@@ -61,7 +61,7 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [access.checkinStatus, access.issuedAt]);
+  }, [access.checkinStatus, calculateTimeLeft]);
 
   const displayDoorCode = timerExpired ? '****' : access.doorCode;
 
@@ -72,13 +72,6 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     'Museos': '🏛️', 'Cultura': '🏛️', 'Centros Comerciales': '🛍️', 'Compras': '🛍️',
     'Farmacias': '💊', 'Supermercados': '🛒', 'Default': '📍'
   };
-
-  useEffect(() => {
-    if (property.aiRecommendations && !activeCategory) {
-      const firstCat = Object.keys(property.aiRecommendations)[0];
-      if (firstCat) setActiveCategory(firstCat);
-    }
-  }, [property.aiRecommendations]);
 
   // --- CARGA DEL AVATAR DESDE LA NUBE ---
   useEffect(() => {
@@ -377,7 +370,7 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 relative z-10">
-                  {(property.aiRecommendations[activeCategory] || []).map((place: any, i: number) => (
+                  {(property.aiRecommendations[activeCategory] || []).map((place: NearbyPlace, i: number) => (
                     <a
                       key={i}
                       href={`https://www.google.com/search?q=${encodeURIComponent(place.name + " " + property.city)}`}

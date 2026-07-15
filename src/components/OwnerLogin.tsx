@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import type { OwnerRow } from '../types';
 
 interface OwnerLoginProps {
-  onLoginSuccess: (ownerData: any) => void;
+  onLoginSuccess: (ownerData: OwnerRow) => void;
   onBack: () => void;
   defaultEmail?: string;
 }
@@ -41,8 +42,8 @@ export default function OwnerLogin({ onLoginSuccess, onBack, defaultEmail = '' }
 
         onLoginSuccess(ownerData);
 
-      } catch (err: any) {
-        setError(err.message || 'Error de conexión');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error de conexión');
       } finally {
         setIsLoading(false);
       }

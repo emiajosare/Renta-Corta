@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import type { OwnerRow } from '../types';
 
 interface LandingPageProps {
-  onLoginSuccess: (ownerData: any) => void;
+  onLoginSuccess: (ownerData: OwnerRow) => void;
   autoOpenModal?: boolean;  // ← prop nueva
 }
 
@@ -23,7 +24,7 @@ const Logo = ({ imageClass = "w-10 h-10", showText = true, containerClass = "fle
 
 
 // 2. MODAL DE AUTENTICACIÓN (CONECTADO A SUPABASE REAL)
-const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClose: () => void; onLoginSuccess: (user: any) => void }) => {
+const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClose: () => void; onLoginSuccess: (user: OwnerRow) => void }) => {
   const [isLogin, setIsLogin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -96,8 +97,8 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean; onClo
           setMessage({ type: 'success', text: '¡Cupo reclamado!' });
           setTimeout(() => onLoginSuccess(ownerData), 800);
         }
-      } catch (error: any) {
-        setMessage({ type: 'error', text: error.message || 'Error al conectar.' });
+      } catch (error) {
+        setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error al conectar.' });
       } finally {
         setLoading(false);
       }

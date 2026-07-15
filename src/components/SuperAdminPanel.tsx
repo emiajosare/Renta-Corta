@@ -69,7 +69,7 @@ const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ onLogout }) => {
         
         // Refrescamos la lista automáticamente
         setOwners(owners.filter(o => o.id !== id));
-        } catch (err) {
+        } catch {
         alert('No se pudo eliminar al administrador.');
         }
     }

@@ -16,6 +16,36 @@ export interface Owner {
   is_founder?: boolean;
 }
 
+// Fila cruda de la tabla `owners` en Supabase (snake_case)
+export interface OwnerRow {
+  id: string;
+  name: string;
+  email?: string;
+  master_pin?: string;
+  token: string;
+  is_first_login: boolean;
+  role?: 'owner' | 'superadmin';
+  avatar_url?: string;
+  is_founder?: boolean;
+  subscription_status?: string;
+}
+
+export interface NearbyPlace {
+  name: string;
+  type: string;
+  rating: number;
+  description: string;
+  distance: string;
+}
+
+// Datos capturados en el formulario rápido de HostDashboard antes de crear la propiedad
+export interface NewPropertyInitialData {
+  propName?: string;
+  city?: string;
+  address?: string;
+  bgImage?: string;
+}
+
 // ✅ CORREGIDO: Interfaz unificada (era duplicada, causaba error de compilación)
 export interface PropertySettings {
   id: string;
@@ -35,8 +65,8 @@ export interface PropertySettings {
   whatsappContact: string;
   welcomeImageUrl?: string;
   stayImageUrl?: string;
-  aiRecommendations?: Record<string, any[]>;
-  nearbyPlaces?: any;
+  aiRecommendations?: Record<string, NearbyPlace[]>;
+  nearbyPlaces?: Record<string, NearbyPlace[]>;
   location_lat?: number;  // ✅ Fusionado aquí (antes estaba en interfaz duplicada)
   location_lng?: number;  // ✅ Fusionado aquí (antes estaba en interfaz duplicada)
 }

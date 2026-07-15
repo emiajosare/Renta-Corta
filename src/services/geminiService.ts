@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import type { NearbyPlace } from '../types';
 
 export const getNearbyPlaces = async (city: string, address: string) => {
   try {
@@ -18,7 +19,7 @@ export const getNearbyPlaces = async (city: string, address: string) => {
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     return text ? parseResponse(text) : getDefaultCategories();
 
-  } catch (error: any) {
+  } catch {
     console.error("⚠️ Error silencioso en el motor de HostFlow");
     return getDefaultCategories();
   }
@@ -28,9 +29,9 @@ export const getNearbyPlaces = async (city: string, address: string) => {
 function parseResponse(text: string) {
   const cleanText = text.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').replace(/\*/g, '').trim();
   const lines = cleanText.split('\n').filter(l => l.includes('||'));
-  
-  const categorized: any = { 
-    "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": [] 
+
+  const categorized: Record<string, NearbyPlace[]> = {
+    "Restaurantes": [], "Farmacias": [], "Compras": [], "Cultura": [], "Naturaleza": []
   };
 
   lines.forEach(line => {

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { type Owner, type PropertySettings, type AccessControl, type Language } from './types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { type Owner, type PropertySettings, type AccessControl, type Language, type OwnerRow, type NewPropertyInitialData } from './types';
 import { AppView } from "./types";
 import { STORAGE_KEYS } from './constants';
 import GuestLogin from './components/GuestLogin';
@@ -24,7 +24,6 @@ const INITIAL_SESSION_ID    = _urlParams.get('session_id');
 const INITIAL_PLAN          = _urlParams.get('plan');
 const INITIAL_CODE          = _urlParams.get('code');
 const INITIAL_ACCESS_TOKEN  = _hashParams.get('access_token');
-const INITIAL_REFRESH_TOKEN = _hashParams.get('refresh_token');
 
 // Limpiamos la URL solo después de capturar todo
 if (INITIAL_ACTION === 'reset-password') {
@@ -37,7 +36,6 @@ if (INITIAL_ACTION === 'reset-password') {
 
 
 const App: React.FC = () => {
-  const [owners, setOwners] = useState<Owner[]>([]);
   const [currentOwner, setCurrentOwner] = useState<Owner | null>(null);
   const [currentGuest, setCurrentGuest] = useState<AccessControl | null>(null);
   // 🟢 Lector de URL (Growth Hack)
@@ -49,11 +47,9 @@ const App: React.FC = () => {
     return AppView.LOGIN_CHOICE; // Vista normal por defecto (Huéspedes)
   });
   const [properties, setProperties] = useState<PropertySettings[]>([]);
-  const [accessRecords, setAccessRecords] = useState<AccessControl[]>([]);
+  const [, setAccessRecords] = useState<AccessControl[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<PropertySettings | null>(null);
-  const [error, setError] = useState<string>('');
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  
+
   const [isVerifying, setIsVerifying] = useState(
     INITIAL_ACTION === 'signup' && !!INITIAL_SESSION_ID
   );
@@ -147,6 +143,33 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // REEMPLAZA toda la función handleStartCheckout
+  const handleStartCheckout = useCallback(async (planId: string, ownerOverride?: Owner) => {
+    const owner = ownerOverride || currentOwner;
+
+    if (!owner) {
+      alert('Debes iniciar sesión antes de continuar con el pago.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: {
+          planId,
+          ownerId: owner.id,
+          email: owner.email
+        }
+      });
+
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al conectar con la pasarela de pago.';
+      alert(message);
+    }
+  }, [currentOwner]);
+
   // 🟢 NUEVO: DETECTOR DE COMPRA DE PLANES (Ej: ?plan=fundador)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -156,7 +179,7 @@ const App: React.FC = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
       handleStartCheckout(planToBuy);
     }
-  }, [currentOwner]);
+  }, [currentOwner, handleStartCheckout]);
 
   // Restaura sesión activa al recargar la página
   useEffect(() => {
@@ -199,34 +222,6 @@ const App: React.FC = () => {
 
     restoreSession();
   }, []);
-
-
-  // REEMPLAZA toda la función handleStartCheckout
-    const handleStartCheckout = async (planId: string, ownerOverride?: Owner) => {
-      const owner = ownerOverride || currentOwner;
-      
-      if (!owner) {
-        alert('Debes iniciar sesión antes de continuar con el pago.');
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-          body: {
-            planId,
-            ownerId: owner.id,
-            email: owner.email
-          }
-        });
-
-        if (error) throw error;
-        if (data?.url) window.location.href = data.url;
-
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al conectar con la pasarela de pago.';
-        alert(message);
-      }
-    };
 
   // Función auxiliar para procesar el link del huésped
   const handleAutoLoginGuest = async (shortId: string) => {
@@ -295,7 +290,7 @@ const App: React.FC = () => {
   const t = translations[language];
 
   // 🟢 LA NUEVA PUERTA DE ENTRADA DESDE LA LANDING PAGE
-  const handleLandingLoginSuccess = async (ownerData: any) => {
+  const handleLandingLoginSuccess = async (ownerData: OwnerRow) => {
     const formattedOwner: Owner = {
       id: ownerData.id,
       name: ownerData.name,
@@ -350,12 +345,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGuestLogin = (property: any, guest: AccessControl) => {
+  const handleGuestLogin = (property: PropertySettings, guest: AccessControl) => {
     const formattedProperty: PropertySettings = {
       ...property,
-      welcomeImageUrl: property.welcome_image_url || property.welcomeImageUrl || '',
-      stayImageUrl: property.stay_image_url || property.stayImageUrl || '',
-      whatsappContact: property.whatsapp_contact || property.whatsappContact || ''
+      welcomeImageUrl: property.welcomeImageUrl || '',
+      stayImageUrl: property.stayImageUrl || '',
+      whatsappContact: property.whatsappContact || ''
     };
     const formattedGuest: AccessControl = {
       ...guest,
@@ -364,7 +359,6 @@ const App: React.FC = () => {
     setCurrentGuest(formattedGuest);
     setSelectedProperty(formattedProperty);
     setView(AppView.GUEST_DASHBOARD);
-    setError('');
   };
 
   const handleCheckIn = async (accessId: string) => {
@@ -439,7 +433,7 @@ const App: React.FC = () => {
     setView(AppView.OWNER_LOGIN); 
   };
 
-  const createNewProperty = (initialData?: any) => {
+  const createNewProperty = (initialData?: NewPropertyInitialData) => {
     if (!currentOwner) return;
     const newPropId = `p${Date.now()}`;
     
@@ -494,7 +488,7 @@ const App: React.FC = () => {
           : AppView.PROPERTY_LIST
         );
 
-      } catch (err) {
+      } catch {
         setView(AppView.LANDING_PAGE);
       } finally {
         setIsVerifying(false); // siempre apagamos el loader al terminar
@@ -585,7 +579,7 @@ const App: React.FC = () => {
               <HostDashboard 
                 user={currentOwner} 
                 onLogout={handleLogout} 
-                onStartCreating={(data: any) => createNewProperty(data)} // Llama a la función real!
+                onStartCreating={createNewProperty} // Llama a la función real!
               />
             )}
                     
