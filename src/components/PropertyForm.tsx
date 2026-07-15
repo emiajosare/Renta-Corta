@@ -411,6 +411,39 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                 <input name="doorCode" value={accessData.doorCode} onChange={handleAccessChange} className={inputClass} placeholder="Código Puerta" />
                 
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                    <label className={labelClass}>⏱️ Duración del Código Puerta (días)</label>
+                    <div className="flex items-center gap-4 mt-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={
+                          accessData.checkIn && accessData.checkOut
+                            ? Math.max(1, Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
+                            : 365
+                        }
+                        value={accessData.doorCodeDuration || ''}
+                        onChange={(e) => setAccessData(prev => ({
+                          ...prev,
+                          doorCodeDuration: e.target.value ? parseInt(e.target.value) : undefined
+                        }))}
+                        placeholder="Días"
+                        className={`${inputClass} max-w-35 text-center font-mono`}
+                      />
+                      <div className="flex-1">
+                        <p className="text-[11px] font-bold text-slate-500">
+                          {accessData.doorCodeDuration
+                            ? `El código expira después de ${accessData.doorCodeDuration} día${accessData.doorCodeDuration > 1 ? 's' : ''} desde el check-in`
+                            : 'Sin configurar — expira a los 30 minutos del check-in'}
+                        </p>
+                        {accessData.checkIn && accessData.checkOut && (
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">
+                            Máximo: {Math.ceil((new Date(accessData.checkOut).getTime() - new Date(accessData.checkIn).getTime()) / (1000 * 60 * 60 * 24))} días (hasta el checkout)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 shadow-sm flex flex-col justify-center">
                     <label className="block text-[10px] font-black uppercase text-[#C9A84C] tracking-[0.2em] mb-3 ml-1">Enlace de Invitación Deluxe</label>
                     <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-100">
