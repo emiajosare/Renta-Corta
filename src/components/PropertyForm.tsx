@@ -378,19 +378,49 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                   {propertyErrors.map((err, i) => <p key={i} className="text-rose-500 text-[10px] font-black uppercase tracking-wide flex items-center mb-1">{err}</p>)}
                 </div>
               )}
-              <div className="md:col-span-2"><input name="buildingName" value={formData.buildingName} onChange={handleChange} className={inputClass} placeholder="Edificio" /></div>
-              <div className="md:col-span-2"><input name="address" value={formData.address} onChange={handleChange} className={inputClass} placeholder="Dirección" /></div>
-              <div><input name="hostName" value={formData.hostName} onChange={handleChange} className={inputClass} placeholder="Anfitrión" /></div>
-              <div><input name="city" value={formData.city} onChange={handleChange} className={inputClass} placeholder="Ciudad" /></div>
-              <div className="md:col-span-2"><input name="whatsappContact" value={formData.whatsappContact} onChange={handleChange} className={inputClass} placeholder="WhatsApp" /></div>
+              <div className="md:col-span-2">
+                <label className={labelClass}>Nombre del Edificio</label>
+                <input name="buildingName" value={formData.buildingName} onChange={handleChange} className={inputClass} placeholder="Edificio" />
+              </div>
+              <div className="md:col-span-2">
+                <label className={labelClass}>Dirección del Inmueble</label>
+                <input name="address" value={formData.address} onChange={handleChange} className={inputClass} placeholder="Dirección" />
+              </div>
+              <div>
+                <label className={labelClass}>Anfitrión (Nombre Público)</label>
+                <input name="hostName" value={formData.hostName} onChange={handleChange} className={inputClass} placeholder="Anfitrión" />
+              </div>
+              <div>
+                <label className={labelClass}>Ciudad</label>
+                <input name="city" value={formData.city} onChange={handleChange} className={inputClass} placeholder="Ciudad" />
+              </div>
+              <div className="md:col-span-2">
+                <label className={labelClass}>WhatsApp de Soporte (Ej: 573001234567)</label>
+                <input name="whatsappContact" value={formData.whatsappContact} onChange={handleChange} className={inputClass} placeholder="WhatsApp" />
+              </div>
               <div className="md:col-span-2 grid grid-cols-3 gap-6">
-                <input name="capacity" value={formData.capacity} onChange={handleChange} className={inputClass} placeholder="Capacidad" />
-                <input type="number" name="rooms" value={formData.rooms} onChange={handleChange} className={inputClass} />
-                <input type="number" name="bathrooms" value={formData.bathrooms} onChange={handleChange} className={inputClass} />
+                <div>
+                  <label className={labelClass}>Capacidad</label>
+                  <input name="capacity" value={formData.capacity} onChange={handleChange} className={inputClass} placeholder="Capacidad" />
+                </div>
+                <div>
+                  <label className={labelClass}>Habitaciones</label>
+                  <input type="number" name="rooms" value={formData.rooms} onChange={handleChange} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Baños</label>
+                  <input type="number" name="bathrooms" value={formData.bathrooms} onChange={handleChange} className={inputClass} />
+                </div>
               </div>
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-100 mt-4">
-                <input name="wifiSSID" value={formData.wifiSSID} onChange={handleChange} className={inputClass} placeholder="WiFi SSID" />
-                <input name="wifiPass" value={formData.wifiPass} onChange={handleChange} className={inputClass} placeholder="WiFi Pass" />
+                <div>
+                  <label className={labelClass}>WiFi SSID</label>
+                  <input name="wifiSSID" value={formData.wifiSSID} onChange={handleChange} className={inputClass} placeholder="WiFi SSID" />
+                </div>
+                <div>
+                  <label className={labelClass}>WiFi Contraseña</label>
+                  <input name="wifiPass" value={formData.wifiPass} onChange={handleChange} className={inputClass} placeholder="WiFi Pass" />
+                </div>
               </div>
             </div>
           )}
@@ -404,11 +434,26 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
                 ))}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="md:col-span-2"><input name="guestName" value={accessData.guestName} onChange={handleAccessChange} className={inputClass} placeholder="Nombre Huésped" /></div>
-                <input type="date" name="checkIn" value={accessData.checkIn} onChange={handleAccessChange} className={inputClass} />
-                <input type="date" name="checkOut" value={accessData.checkOut} onChange={handleAccessChange} className={inputClass} />
-                <input name="bookingCode" value={accessData.bookingCode} onChange={handleAccessChange} className={inputClass + " uppercase"} placeholder="Código Reserva" />
-                <input name="doorCode" value={accessData.doorCode} onChange={handleAccessChange} className={inputClass} placeholder="Código Puerta" />
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Nombre del Huésped</label>
+                  <input name="guestName" value={accessData.guestName} onChange={handleAccessChange} className={inputClass} placeholder="Nombre Huésped" />
+                </div>
+                <div>
+                  <label className={labelClass}>Fecha de Entrada (Check-in)</label>
+                  <input type="date" name="checkIn" value={accessData.checkIn} onChange={handleAccessChange} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Fecha de Salida (Check-out)</label>
+                  <input type="date" name="checkOut" value={accessData.checkOut} onChange={handleAccessChange} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Código Login</label>
+                  <input name="bookingCode" value={accessData.bookingCode} onChange={handleAccessChange} className={inputClass + " uppercase"} placeholder="Código Reserva" />
+                </div>
+                <div>
+                  <label className={labelClass}>Código Puerta</label>
+                  <input name="doorCode" value={accessData.doorCode} onChange={handleAccessChange} className={inputClass} placeholder="Código Puerta" />
+                </div>
                 
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
@@ -468,9 +513,18 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ property, onSave, onBack, l
 
           {activeTab === 'GUIAS' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-               <textarea name="rules" value={formData.rules} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.rules} />
-               <textarea name="guides" value={formData.guides} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.manual} />
-               <textarea name="checkoutInstructions" value={formData.checkoutInstructions} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.checkout} />
+               <div>
+                 <label className={labelClass}>{t.owner.form.rules}</label>
+                 <textarea name="rules" value={formData.rules} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.rules} />
+               </div>
+               <div>
+                 <label className={labelClass}>{t.owner.form.manual}</label>
+                 <textarea name="guides" value={formData.guides} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.manual} />
+               </div>
+               <div>
+                 <label className={labelClass}>{t.owner.form.checkout}</label>
+                 <textarea name="checkoutInstructions" value={formData.checkoutInstructions} onChange={handleChange} rows={5} className={inputClass} placeholder={t.owner.form.checkout} />
+               </div>
             </div>
           )}
         </form>
