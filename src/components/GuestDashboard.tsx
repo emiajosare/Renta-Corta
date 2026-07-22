@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { PropertySettings, AccessControl, Language, NearbyPlace } from '../types';
 import { translations } from '../translations';
 import { supabase } from '../lib/supabaseClient';
@@ -36,22 +36,28 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
     ? access.doorCodeDuration * 24 * 60 * 60  // días a segundos
     : 1800; // 30 minutos por defecto
 
+  // La activación del contador de seguridad siempre parte de la fecha de Check-In (a las 12:00 pm),
+  // sin importar cuándo el huésped confirme su ingreso dentro de la app.
+  const activationTime = useMemo(() => {
+    if (!access.checkIn) return null;
+    const [year, month, day] = access.checkIn.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day, 12, 0, 0, 0).getTime();
+  }, [access.checkIn]);
+
   const calculateTimeLeft = useCallback(() => {
-    if (!access.checkinStatus || !access.issuedAt) return TIMER_DURATION_SEC;
-    const startTime = isNaN(Number(access.issuedAt))
-      ? new Date(access.issuedAt).getTime()
-      : Number(access.issuedAt);
-    if (isNaN(startTime)) return TIMER_DURATION_SEC;
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (!activationTime) return TIMER_DURATION_SEC;
+    const elapsed = Math.floor((Date.now() - activationTime) / 1000);
+    if (elapsed <= 0) return TIMER_DURATION_SEC; // aún no llega la fecha/hora de activación
     return Math.max(0, TIMER_DURATION_SEC - elapsed);
-  }, [access.checkinStatus, access.issuedAt, TIMER_DURATION_SEC]);
+  }, [activationTime, TIMER_DURATION_SEC]);
 
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
   const [timerExpired, setTimerExpired] = useState(timeLeft <= 0);
 
   // ✅ CORREGIDO: Un solo useEffect para el timer (antes había dos iguales)
   useEffect(() => {
-    if (!access.checkinStatus || calculateTimeLeft() <= 0) return;
+    if (calculateTimeLeft() <= 0) return;
     const interval = setInterval(() => {
       const newTime = calculateTimeLeft();
       setTimeLeft(newTime);
@@ -61,7 +67,7 @@ const GuestDashboard: React.FC<GuestDashboardProps> = ({ property, access, onChe
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [access.checkinStatus, calculateTimeLeft]);
+  }, [calculateTimeLeft]);
 
   const displayDoorCode = timerExpired ? '****' : access.doorCode;
 
